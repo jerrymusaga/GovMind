@@ -1,0 +1,98 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --polkadot-pink: #E6007A;
+  --polkadot-purple: #6D3AEE;
+}
+
+body {
+  background: #0A0A0F;
+  color: #E2E8F0;
+  font-family: system-ui, -apple-system, sans-serif;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #12121A;
+}
+::-webkit-scrollbar-thumb {
+  background: #2E2E42;
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #E6007A;
+}
+
+/* Glass card */
+@layer components {
+  .glass-card {
+    @apply bg-surface-1/80 backdrop-blur-xl border border-white/5 rounded-2xl;
+  }
+  .glass-card-hover {
+    @apply glass-card transition-all duration-300 hover:border-polkadot-pink/30 hover:shadow-lg hover:shadow-polkadot-pink/5;
+  }
+  .gradient-text {
+    @apply bg-gradient-to-r from-polkadot-pink to-polkadot-purple bg-clip-text text-transparent;
+  }
+  .btn-primary {
+    @apply px-6 py-3 bg-gradient-to-r from-polkadot-pink to-polkadot-purple rounded-xl font-semibold text-white transition-all duration-300 hover:shadow-lg hover:shadow-polkadot-pink/25 hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100;
+  }
+  .btn-secondary {
+    @apply px-6 py-3 bg-surface-3 border border-white/10 rounded-xl font-semibold text-white transition-all duration-300 hover:border-polkadot-pink/30 hover:bg-surface-4 active:scale-[0.98];
+  }
+  .input-field {
+    @apply w-full px-4 py-3 bg-surface-2 border border-white/10 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-polkadot-pink/50 focus:ring-1 focus:ring-polkadot-pink/25 transition-all;
+  }
+}
+
+/* Recommendation badges */
+.badge-aye {
+  @apply bg-emerald-500/15 text-emerald-400 border border-emerald-500/30;
+}
+.badge-nay {
+  @apply bg-red-500/15 text-red-400 border border-red-500/30;
+}
+.badge-abstain {
+  @apply bg-amber-500/15 text-amber-400 border border-amber-500/30;
+}
+
+/* Slider thumb styling */
+input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  background: transparent;
+  cursor: pointer;
+  width: 100%;
+}
+input[type="range"]::-webkit-slider-track {
+  height: 6px;
+  border-radius: 3px;
+  background: #232333;
+}
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  height: 20px;
+  width: 20px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #E6007A, #6D3AEE);
+  margin-top: -7px;
+  box-shadow: 0 0 10px rgba(230, 0, 122, 0.4);
+  transition: box-shadow 0.2s;
+}
+input[type="range"]::-webkit-slider-thumb:hover {
+  box-shadow: 0 0 20px rgba(230, 0, 122, 0.6);
+}
+
+/* Pulse animation for live indicators */
+@keyframes live-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+.live-dot {
+  animation: live-pulse 2s ease-in-out infinite;
+}
