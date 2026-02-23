@@ -149,6 +149,7 @@ export const AI_ORACLE_ABI = [
           { name: "analysisIPFSHash", type: "string" },
           { name: "analyzedAt", type: "uint256" },
           { name: "exists", type: "bool" },
+          { name: "version", type: "uint256" },
         ],
       },
     ],
