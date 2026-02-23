@@ -249,6 +249,71 @@ function extractReactions(reactions) {
   };
 }
 
+/**
+ * Fetch historical precedent: similar past proposals for AI comparison
+ * Searches by same proposer and same track to find relevant precedent
+ */
+export async function fetchHistoricalPrecedents(proposal, limit = 3) {
+  const precedents = [];
+
+  try {
+    // 1. Fetch past proposals by same proposer
+    if (proposal.proposer && proposal.proposer !== "Unknown") {
+      const proposerUrl = `${POLKASSEMBLY_BASE}/listing/on-chain-posts?proposalType=referendums_v2&page=1&listingLimit=5&proposer=${proposal.proposer}`;
+      try {
+        const res = await fetch(proposerUrl);
+        if (res.ok) {
+          const data = await res.json();
+          const posts = data.posts || data || [];
+          for (const post of posts) {
+            if (post.post_id !== proposal.referendumIndex) {
+              precedents.push(formatPrecedent(post, "same_proposer"));
+            }
+          }
+        }
+      } catch (_) {}
+    }
+
+    // 2. Fetch past proposals on same track
+    const trackUrl = `${POLKASSEMBLY_BASE}/listing/on-chain-posts?proposalType=referendums_v2&page=1&listingLimit=10&trackNo=${proposal.track}`;
+    try {
+      const res = await fetch(trackUrl);
+      if (res.ok) {
+        const data = await res.json();
+        const posts = data.posts || data || [];
+        for (const post of posts) {
+          if (
+            post.post_id !== proposal.referendumIndex &&
+            !precedents.find((p) => p.referendumIndex === post.post_id)
+          ) {
+            precedents.push(formatPrecedent(post, "same_track"));
+          }
+        }
+      }
+    } catch (_) {}
+  } catch (err) {
+    console.warn(`  Historical precedent fetch failed: ${err.message}`);
+  }
+
+  return precedents.slice(0, limit);
+}
+
+function formatPrecedent(post, matchType) {
+  const tally = extractTally(post.tally);
+  return {
+    referendumIndex: post.post_id,
+    title: post.title || "Untitled",
+    track: post.track_number ?? 0,
+    trackName: TRACK_NAMES[post.track_number] || "Unknown",
+    state: post.status || "Unknown",
+    proposer: post.proposer || "Unknown",
+    tally,
+    spendingInfo: { totalAmountDOT: 0 }, // Simplified for precedent
+    commentsCount: post.comments_count || 0,
+    matchType,
+  };
+}
+
 function stripHtml(str) {
   return str.replace(/<[^>]*>/g, "").replace(/\s+/g, " ").trim();
 }
