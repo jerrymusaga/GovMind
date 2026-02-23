@@ -2,54 +2,78 @@ import OpenAI from "openai";
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
-const SYSTEM_PROMPT = `You are GovMind, an AI governance analyst for Polkadot OpenGov. You analyze referendum proposals using on-chain data, community discussion, and voting patterns to produce structured assessments.
+const POLKADOT_TREASURY_DOT = 38_000_000;
+
+const DEEP_SYSTEM_PROMPT = `You are GovMind, an expert AI governance analyst for Polkadot OpenGov. You produce institutional-grade analysis — not generic summaries. Every claim must be backed by data from the enriched input you receive.
 
 CONTEXT:
-- Polkadot treasury currently holds approximately 38 million DOT
-- You are evaluating proposals submitted to OpenGov referenda
-- Your analysis will be published on-chain, so accuracy matters
-- You have access to REAL community comments and on-chain voting data from Polkassembly
+- Polkadot treasury: ~38 million DOT (~$190M at $5/DOT)
+- Polkadot has 1.4B total supply, ~55% staked
+- You have access to REAL on-chain voting data, community comments, and spending breakdowns from Polkassembly
+- Your analysis is published on-chain, so precision matters
 
 PROPOSAL CATEGORIES (pick exactly one by ID):
-0 = TREASURY_SPEND (direct treasury spending proposals)
-1 = TREASURY_TIP (tips/small payments to contributors)
-2 = TECHNICAL_UPGRADE (runtime upgrades, protocol changes)
-3 = GOVERNANCE_CHANGE (changes to governance parameters)
-4 = STAKING_OPERATION (staking/nomination pool changes)
-5 = BRIDGE_OPERATION (bridge-related proposals)
-6 = COMMUNITY_INITIATIVE (events, education, marketing)
-7 = INFRASTRUCTURE (RPC nodes, indexers, tooling)
-8 = BOUNTY (bounty proposals)
-9 = OTHER (anything that doesn't fit above)
+0=TREASURY_SPEND, 1=TREASURY_TIP, 2=TECHNICAL_UPGRADE, 3=GOVERNANCE_CHANGE,
+4=STAKING_OPERATION, 5=BRIDGE_OPERATION, 6=COMMUNITY_INITIATIVE, 7=INFRASTRUCTURE,
+8=BOUNTY, 9=OTHER
 
-EVALUATION CRITERIA:
-1. Budget reasonableness - Is the requested amount proportional to deliverables?
-2. Team credibility - Does the proposer seem capable based on available info?
-3. Technical feasibility - Are the goals technically achievable?
-4. Ecosystem value - Does this benefit the broader Polkadot ecosystem?
-5. Risk factors - Vague milestones, no accountability, excessive ask?
-6. Community sentiment - What does the community discussion reveal?
-7. On-chain voting momentum - How is the vote trending?
-8. Historical context - Is this a recurring proposal from a known team?
-
-IMPORTANT: Weight community concerns heavily. If expert commenters or well-known community members raise red flags, increase risk score accordingly.
-
-Respond with ONLY valid JSON. No markdown, no explanation, no code fences.
+Respond with ONLY valid JSON matching this EXACT structure. No markdown, no explanation, no code fences.
 {
-  "riskScore": <0-100, where 0=very safe, 100=very risky>,
-  "categoryId": <0-9, matching categories above>,
+  "riskScore": <0-100>,
+  "categoryId": <0-9>,
   "recommendation": <-1 for Nay, 0 for Abstain, 1 for Aye>,
-  "confidence": <0-100, how confident you are>,
-  "requestedAmountDOT": <number, 0 if not a treasury proposal>,
-  "treasuryImpactBps": <basis points impact on 38M DOT treasury, e.g. 230 = 2.3%>,
-  "summary": "<2-3 sentence analysis explaining your recommendation, referencing community sentiment and voting data>"
+  "confidence": <0-100>,
+  "requestedAmountDOT": <number>,
+  "treasuryImpactBps": <basis points on 38M treasury>,
+  "summary": "<1 sentence verdict>",
+  "deepAnalysis": {
+    "verdict": "<3-4 sentence detailed reasoning chain explaining WHY you reached this recommendation, citing specific data points>",
+    "treasuryBreakdown": {
+      "requestedDOT": <number>,
+      "requestedUSD": <estimated USD value at $5/DOT>,
+      "treasuryPercent": <% of 38M treasury>,
+      "costPerMonth": <DOT per month if duration known, else 0>,
+      "durationMonths": <estimated duration, 0 if unknown>,
+      "valueAssessment": "<1 sentence: is the cost justified for deliverables?>"
+    },
+    "riskFactors": [
+      {
+        "factor": "<specific risk name>",
+        "severity": "<low|medium|high|critical>",
+        "detail": "<1-2 sentences explaining this specific risk with evidence>"
+      }
+    ],
+    "communitySentiment": {
+      "overallSignal": "<bullish|bearish|mixed|silent>",
+      "weightedScore": <-100 to 100, weighted by comment quality/engagement>,
+      "keyTakeaway": "<1 sentence summarizing what the community thinks and why it matters>",
+      "notableConcerns": ["<specific concern from comments>"],
+      "notableEndorsements": ["<specific endorsement from comments>"]
+    },
+    "votingMomentum": {
+      "trend": "<strong_aye|leaning_aye|contested|leaning_nay|strong_nay|early>",
+      "ayePercent": <number>,
+      "totalStakeDOT": <total DOT committed to votes>,
+      "conviction": "<1 sentence on what the voting pattern suggests about community confidence>"
+    },
+    "historicalContext": {
+      "hasHistoricalData": <true|false>,
+      "similarProposals": "<description of similar past proposals if provided, or 'No historical data available'>",
+      "proposerTrackRecord": "<assessment of proposer based on available data>",
+      "precedentAnalysis": "<how this compares to similar past proposals in terms of amount, outcome, delivery>"
+    },
+    "strengthsAndWeaknesses": {
+      "strengths": ["<specific strength with evidence>"],
+      "weaknesses": ["<specific weakness with evidence>"]
+    }
+  }
 }`;
 
 /**
- * Build an enriched prompt with all Polkassembly data for the AI to analyze
+ * Build an enriched prompt with all Polkassembly data + historical precedents
  */
-function buildEnrichedPrompt(proposal) {
-  let prompt = `Analyze this Polkadot OpenGov referendum with the following enriched data:
+function buildEnrichedPrompt(proposal, historicalData) {
+  let prompt = `Analyze this Polkadot OpenGov referendum with the following REAL on-chain and community data:
 
 === PROPOSAL INFO ===
 Referendum #: ${proposal.referendumIndex}
@@ -63,87 +87,133 @@ Data Source: ${proposal.dataSource || "polkassembly"}
 === PROPOSAL CONTENT ===
 ${proposal.content}`;
 
-  // Add on-chain voting data
+  // On-chain voting data
   if (proposal.tally && (proposal.tally.ayes > 0 || proposal.tally.nays > 0)) {
+    const totalStake = proposal.tally.ayes + proposal.tally.nays;
     prompt += `
 
-=== ON-CHAIN VOTING (Live Tally) ===
+=== ON-CHAIN VOTING (Live Tally from Polkadot) ===
 Ayes: ${proposal.tally.ayes.toLocaleString()} DOT (${proposal.tally.ayePercent}%)
 Nays: ${proposal.tally.nays.toLocaleString()} DOT (${100 - proposal.tally.ayePercent}%)
 Support: ${proposal.tally.support.toLocaleString()} DOT
-Verdict so far: ${proposal.tally.ayePercent >= 50 ? "Trending Aye" : "Trending Nay"} at ${proposal.tally.ayePercent}%`;
+Total Stake Committed: ${totalStake.toLocaleString()} DOT
+Current Direction: ${proposal.tally.ayePercent >= 60 ? "Strong Aye" : proposal.tally.ayePercent >= 50 ? "Leaning Aye" : proposal.tally.ayePercent >= 40 ? "Contested" : "Leaning Nay"} at ${proposal.tally.ayePercent}%`;
   }
 
-  // Add spending info from proposed_call
+  // Treasury spending data from proposed_call
   if (proposal.spendingInfo && proposal.spendingInfo.totalAmountDOT > 0) {
+    const pct = ((proposal.spendingInfo.totalAmountDOT / POLKADOT_TREASURY_DOT) * 100).toFixed(3);
+    const usd = (proposal.spendingInfo.totalAmountDOT * 5).toLocaleString();
     prompt += `
 
-=== TREASURY REQUEST (from on-chain call) ===
-Total Amount: ${proposal.spendingInfo.totalAmountDOT.toLocaleString()} DOT
+=== TREASURY REQUEST (Extracted from On-Chain Call Data) ===
+Total Amount: ${proposal.spendingInfo.totalAmountDOT.toLocaleString()} DOT (~$${usd} USD at $5/DOT)
 Payment Tranches: ${proposal.spendingInfo.paymentCount}
 Beneficiaries: ${proposal.spendingInfo.beneficiaries.length > 0 ? proposal.spendingInfo.beneficiaries.join(", ") : "Not specified"}
-Treasury Impact: ~${((proposal.spendingInfo.totalAmountDOT / 38_000_000) * 100).toFixed(3)}% of treasury`;
+Treasury Impact: ${pct}% of ~38M DOT treasury
+NOTE: Calculate cost-per-month if the proposal mentions a duration.`;
   }
 
-  // Add community discussion
+  // Community discussion with engagement weighting
   if (proposal.commentAnalysis && proposal.commentAnalysis.total > 0) {
     const ca = proposal.commentAnalysis;
     prompt += `
 
 === COMMUNITY DISCUSSION (${ca.total} comments from Polkassembly) ===
-Sentiment Breakdown: ${ca.sentiments.positive} supportive, ${ca.sentiments.negative} opposed, ${ca.sentiments.neutral} neutral`;
+Sentiment: ${ca.sentiments.positive} supportive | ${ca.sentiments.negative} opposed | ${ca.sentiments.neutral} neutral
+Engagement Ratio: ${ca.total > 10 ? "High" : ca.total > 3 ? "Moderate" : "Low"} (${ca.total} comments)
+IMPORTANT: Weight expert/known-contributor comments more heavily than anonymous ones.`;
 
     if (ca.topConcerns.length > 0) {
-      prompt += `\n\nKey Concerns Raised:`;
+      prompt += `\n\nVERBATIM CONCERNS (from real community members):`;
       for (const concern of ca.topConcerns) {
         prompt += `\n- ${concern.author}: "${concern.text}"`;
       }
     }
 
     if (ca.endorsements.length > 0) {
-      prompt += `\n\nNotable Endorsements:`;
+      prompt += `\n\nVERBATIM ENDORSEMENTS:`;
       for (const endorsement of ca.endorsements) {
-        prompt += `\n- ${endorsement.author}${endorsement.isExpert ? " [Expert]" : ""}: "${endorsement.text}"`;
+        prompt += `\n- ${endorsement.author}${endorsement.isExpert ? " [EXPERT/COUNCIL]" : ""}: "${endorsement.text}"`;
       }
     }
   }
 
-  // Add reactions
+  // Reactions
   if (proposal.reactions && (proposal.reactions.thumbsUp > 0 || proposal.reactions.thumbsDown > 0)) {
+    const total = proposal.reactions.thumbsUp + proposal.reactions.thumbsDown || 1;
+    const approval = Math.round((proposal.reactions.thumbsUp / total) * 100);
     prompt += `
 
 === COMMUNITY REACTIONS ===
-👍 ${proposal.reactions.thumbsUp} | 👎 ${proposal.reactions.thumbsDown}`;
+Thumbs Up: ${proposal.reactions.thumbsUp} | Thumbs Down: ${proposal.reactions.thumbsDown}
+Quick Sentiment: ${approval}% approval rate`;
   }
 
-  // Add status timeline
+  // Status timeline
   if (proposal.statusTimeline && proposal.statusTimeline.length > 0) {
     prompt += `
 
-=== STATUS TIMELINE ===`;
+=== GOVERNANCE LIFECYCLE ===`;
     for (const entry of proposal.statusTimeline) {
       const date = entry.timestamp
         ? new Date(entry.timestamp).toLocaleDateString()
         : `Block #${entry.block}`;
       prompt += `\n${date}: ${entry.status}`;
     }
+    // Calculate time in current status
+    const latest = proposal.statusTimeline[proposal.statusTimeline.length - 1];
+    if (latest?.timestamp) {
+      const daysInStatus = Math.round((Date.now() - new Date(latest.timestamp).getTime()) / 86400000);
+      prompt += `\nTime in current status: ${daysInStatus} days`;
+    }
   }
+
+  // Historical precedent data
+  if (historicalData && historicalData.length > 0) {
+    prompt += `
+
+=== HISTORICAL PRECEDENT (Similar Past Proposals) ===
+Use these to assess whether this proposal's ask is reasonable compared to precedent:`;
+    for (const h of historicalData) {
+      prompt += `\n
+Referendum #${h.referendumIndex}: "${h.title}"
+  Track: ${h.trackName} | Status: ${h.state} | Proposer: ${h.proposer}${h.spendingInfo?.totalAmountDOT > 0 ? `\n  Amount: ${h.spendingInfo.totalAmountDOT.toLocaleString()} DOT` : ""}${h.tally?.ayePercent > 0 ? `\n  Final Vote: ${h.tally.ayePercent}% Aye` : ""}${h.commentsCount > 0 ? `\n  Community Engagement: ${h.commentsCount} comments` : ""}`;
+    }
+  } else {
+    prompt += `
+
+=== HISTORICAL PRECEDENT ===
+No historical data available for comparison. Note this as a limitation in your analysis.`;
+  }
+
+  prompt += `
+
+=== ANALYSIS INSTRUCTIONS ===
+1. Every claim in your analysis MUST reference specific data from above
+2. For treasury proposals: calculate cost-per-month, compare to similar proposals
+3. Weight expert comments and high-stake voters more heavily
+4. Identify SPECIFIC risk factors, not generic ones
+5. If community is raising concerns, explain exactly what they are
+6. Your verdict must form a logical chain: data → reasoning → recommendation`;
 
   return prompt;
 }
 
 /**
- * Analyze a proposal using OpenAI GPT with enriched Polkassembly data
+ * Analyze a proposal using OpenAI GPT with enriched Polkassembly data + historical context
+ * Returns both on-chain params AND rich deep analysis for the API
  */
-export async function analyzeProposal(proposal) {
-  const userPrompt = buildEnrichedPrompt(proposal);
+export async function analyzeProposal(proposal, historicalData = []) {
+  const userPrompt = buildEnrichedPrompt(proposal, historicalData);
 
   // Log enrichment stats
   const enrichmentStats = [];
   if (proposal.tally?.ayes > 0 || proposal.tally?.nays > 0) enrichmentStats.push("tally");
   if (proposal.commentAnalysis?.total > 0) enrichmentStats.push(`${proposal.commentAnalysis.total} comments`);
-  if (proposal.spendingInfo?.totalAmountDOT > 0) enrichmentStats.push("spending data");
+  if (proposal.spendingInfo?.totalAmountDOT > 0) enrichmentStats.push("spending");
   if (proposal.statusTimeline?.length > 0) enrichmentStats.push("timeline");
+  if (historicalData.length > 0) enrichmentStats.push(`${historicalData.length} precedents`);
   if (enrichmentStats.length > 0) {
     console.log(`  Enriched with: ${enrichmentStats.join(", ")}`);
   }
@@ -152,50 +222,42 @@ export async function analyzeProposal(proposal) {
     const response = await openai.chat.completions.create({
       model: "gpt-4o-mini",
       temperature: 0.3,
-      max_tokens: 600,
+      max_tokens: 2000,
       messages: [
-        { role: "system", content: SYSTEM_PROMPT },
+        { role: "system", content: DEEP_SYSTEM_PROMPT },
         { role: "user", content: userPrompt },
       ],
     });
 
     const raw = response.choices[0].message.content.trim();
     const analysis = JSON.parse(raw);
-    return validateAnalysis(analysis);
+    return validateDeepAnalysis(analysis, proposal);
   } catch (err) {
-    console.warn("  AI analysis failed, retrying once:", err.message);
+    console.warn("  AI analysis failed, retrying with lower temp:", err.message);
 
     try {
       const response = await openai.chat.completions.create({
         model: "gpt-4o-mini",
         temperature: 0.1,
-        max_tokens: 600,
+        max_tokens: 2000,
         messages: [
-          { role: "system", content: SYSTEM_PROMPT },
+          { role: "system", content: DEEP_SYSTEM_PROMPT },
           { role: "user", content: userPrompt },
         ],
       });
 
       const raw = response.choices[0].message.content.trim();
       const analysis = JSON.parse(raw);
-      return validateAnalysis(analysis);
+      return validateDeepAnalysis(analysis, proposal);
     } catch (retryErr) {
       console.error("  AI analysis failed after retry:", retryErr.message);
-      return {
-        riskScore: 50,
-        categoryId: 9,
-        recommendation: 0,
-        confidence: 10,
-        requestedAmountDOT: 0,
-        treasuryImpactBps: 0,
-        summary: "Analysis unavailable — defaulting to abstain with low confidence.",
-      };
+      return fallbackAnalysis(proposal);
     }
   }
 }
 
-function validateAnalysis(analysis) {
-  return {
+function validateDeepAnalysis(analysis, proposal) {
+  const base = {
     riskScore: clamp(analysis.riskScore ?? 50, 0, 100),
     categoryId: clamp(analysis.categoryId ?? 9, 0, 9),
     recommendation: clamp(analysis.recommendation ?? 0, -1, 1),
@@ -203,6 +265,99 @@ function validateAnalysis(analysis) {
     requestedAmountDOT: Math.max(0, Number(analysis.requestedAmountDOT) || 0),
     treasuryImpactBps: Math.max(0, Number(analysis.treasuryImpactBps) || 0),
     summary: analysis.summary || "No summary provided.",
+  };
+
+  // Validate and normalize deep analysis
+  const deep = analysis.deepAnalysis || {};
+
+  base.deepAnalysis = {
+    verdict: deep.verdict || base.summary,
+
+    treasuryBreakdown: {
+      requestedDOT: deep.treasuryBreakdown?.requestedDOT || base.requestedAmountDOT,
+      requestedUSD: deep.treasuryBreakdown?.requestedUSD || base.requestedAmountDOT * 5,
+      treasuryPercent: deep.treasuryBreakdown?.treasuryPercent || Number(((base.requestedAmountDOT / POLKADOT_TREASURY_DOT) * 100).toFixed(3)),
+      costPerMonth: deep.treasuryBreakdown?.costPerMonth || 0,
+      durationMonths: deep.treasuryBreakdown?.durationMonths || 0,
+      valueAssessment: deep.treasuryBreakdown?.valueAssessment || "No value assessment available.",
+    },
+
+    riskFactors: Array.isArray(deep.riskFactors)
+      ? deep.riskFactors.map((r) => ({
+          factor: r.factor || "Unknown risk",
+          severity: ["low", "medium", "high", "critical"].includes(r.severity) ? r.severity : "medium",
+          detail: r.detail || "",
+        })).slice(0, 6)
+      : [{ factor: "Insufficient data", severity: "medium", detail: "Unable to assess specific risks." }],
+
+    communitySentiment: {
+      overallSignal: ["bullish", "bearish", "mixed", "silent"].includes(deep.communitySentiment?.overallSignal)
+        ? deep.communitySentiment.overallSignal
+        : proposal.commentAnalysis?.total > 0 ? "mixed" : "silent",
+      weightedScore: clamp(deep.communitySentiment?.weightedScore ?? 0, -100, 100),
+      keyTakeaway: deep.communitySentiment?.keyTakeaway || "No community discussion available.",
+      notableConcerns: Array.isArray(deep.communitySentiment?.notableConcerns)
+        ? deep.communitySentiment.notableConcerns.slice(0, 4)
+        : [],
+      notableEndorsements: Array.isArray(deep.communitySentiment?.notableEndorsements)
+        ? deep.communitySentiment.notableEndorsements.slice(0, 4)
+        : [],
+    },
+
+    votingMomentum: {
+      trend: ["strong_aye", "leaning_aye", "contested", "leaning_nay", "strong_nay", "early"].includes(deep.votingMomentum?.trend)
+        ? deep.votingMomentum.trend
+        : "early",
+      ayePercent: deep.votingMomentum?.ayePercent ?? (proposal.tally?.ayePercent || 0),
+      totalStakeDOT: deep.votingMomentum?.totalStakeDOT ?? ((proposal.tally?.ayes || 0) + (proposal.tally?.nays || 0)),
+      conviction: deep.votingMomentum?.conviction || "Insufficient voting data to assess conviction.",
+    },
+
+    historicalContext: {
+      hasHistoricalData: deep.historicalContext?.hasHistoricalData ?? false,
+      similarProposals: deep.historicalContext?.similarProposals || "No historical data available.",
+      proposerTrackRecord: deep.historicalContext?.proposerTrackRecord || "No prior proposals found for this proposer.",
+      precedentAnalysis: deep.historicalContext?.precedentAnalysis || "Unable to compare to historical precedent.",
+    },
+
+    strengthsAndWeaknesses: {
+      strengths: Array.isArray(deep.strengthsAndWeaknesses?.strengths)
+        ? deep.strengthsAndWeaknesses.strengths.slice(0, 5)
+        : ["Insufficient data to identify strengths."],
+      weaknesses: Array.isArray(deep.strengthsAndWeaknesses?.weaknesses)
+        ? deep.strengthsAndWeaknesses.weaknesses.slice(0, 5)
+        : ["Insufficient data to identify weaknesses."],
+    },
+  };
+
+  return base;
+}
+
+function fallbackAnalysis(proposal) {
+  return {
+    riskScore: 50,
+    categoryId: 9,
+    recommendation: 0,
+    confidence: 10,
+    requestedAmountDOT: proposal.spendingInfo?.totalAmountDOT || 0,
+    treasuryImpactBps: 0,
+    summary: "Analysis unavailable — defaulting to abstain with low confidence.",
+    deepAnalysis: {
+      verdict: "AI analysis was unable to complete. Manual review recommended.",
+      treasuryBreakdown: {
+        requestedDOT: proposal.spendingInfo?.totalAmountDOT || 0,
+        requestedUSD: (proposal.spendingInfo?.totalAmountDOT || 0) * 5,
+        treasuryPercent: 0,
+        costPerMonth: 0,
+        durationMonths: 0,
+        valueAssessment: "Unable to assess.",
+      },
+      riskFactors: [{ factor: "Analysis failure", severity: "high", detail: "AI analysis could not complete. Proceed with manual review." }],
+      communitySentiment: { overallSignal: "silent", weightedScore: 0, keyTakeaway: "No analysis available.", notableConcerns: [], notableEndorsements: [] },
+      votingMomentum: { trend: "early", ayePercent: 0, totalStakeDOT: 0, conviction: "No data." },
+      historicalContext: { hasHistoricalData: false, similarProposals: "N/A", proposerTrackRecord: "N/A", precedentAnalysis: "N/A" },
+      strengthsAndWeaknesses: { strengths: ["N/A"], weaknesses: ["Analysis unavailable"] },
+    },
   };
 }
 
