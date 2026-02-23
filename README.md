@@ -4,25 +4,53 @@
 
 ## What is GovMind?
 
-GovMind makes Polkadot OpenGov accessible through AI. Users create a "Governance Identity" that captures their values and risk preferences. The AI analyzes every proposal — risk scoring, treasury impact, historical comparison — and can auto-vote on behalf of users according to their personalized profile.
+GovMind makes Polkadot OpenGov accessible through AI. Users create a "Governance Identity" that captures their values and risk preferences. The AI analyzes every proposal — risk scoring, treasury impact, community sentiment, on-chain voting patterns — and can auto-vote on behalf of users according to their personalized profile.
 
 A treasury-conservative user and a growth-focused user see the **same proposal** but get **different AI recommendations**. That's personalized governance.
 
 ## Architecture
 
 ```
-Frontend (Next.js + Viem)
+Frontend (Next.js + Wagmi + RainbowKit)
     ↕
 Smart Contracts (Solidity on Polkadot Hub EVM)
-  ├── src/GovMindCore.sol    — Vote orchestration & execution
-  ├── src/IdentityVault.sol  — User governance preference storage
-  └── src/AIOracle.sol       — AI analysis bridge
+  ├── src/GovMindCore.sol    — Vote orchestration & personalization engine
+  ├── src/IdentityVault.sol  — User governance preference storage (6-axis)
+  └── src/AIOracle.sol       — AI analysis bridge (on-chain proof)
     ↕
-AI Backend (Node.js)
-  ├── Proposal analysis via LLM
-  ├── Data from Subsquare + Subscan APIs
-  └── Personalized vote matching
+AI Backend (Node.js + OpenAI GPT)
+  ├── Enriched data from Polkassembly (Klara data layer)
+  │     ├── Live voting tally (ayes/nays/support in DOT)
+  │     ├── Community comments & sentiment analysis
+  │     ├── On-chain proposed_call spending breakdown
+  │     └── Status timeline & reaction data
+  ├── GPT-4o-mini analysis with community context
+  └── On-chain publishing via AIOracle contract
 ```
+
+## Polkassembly / Klara Integration
+
+GovMind integrates with **Polkassembly's data layer** (the same data that powers [Klara](https://polkadot.polkassembly.io/), Polkassembly's AI governance assistant) to enrich AI analysis with real community intelligence:
+
+| Data Source | What We Extract | How It Improves Analysis |
+|-------------|----------------|------------------------|
+| **On-chain Tally** | Ayes/Nays in DOT, support levels | AI sees real voting momentum before recommending |
+| **Community Comments** | Sentiment distribution, key concerns, expert endorsements | Community red flags increase risk score |
+| **Proposed Call** | Exact spending amounts, payment tranches, beneficiaries | Precise treasury impact calculation |
+| **Status Timeline** | Submission → Deciding → Confirming → Executed | AI understands governance lifecycle stage |
+| **Reactions** | Thumbs up/down counts | Quick community sentiment signal |
+
+**Klara answers "what is this proposal?" — GovMind answers "should *you* vote for this, given *your* values?"**
+
+They are complementary: Klara is the **information layer**, GovMind is the **decision layer**. Better input from Polkassembly = better personalized output from GovMind.
+
+## Deployed Contracts (Polkadot Hub Testnet)
+
+| Contract | Address |
+|----------|---------|
+| IdentityVault | [`0xe5273E84634D9A81C09BEf46aA8980F1270b606A`](https://blockscout-testnet.polkadot.io/address/0xe5273E84634D9A81C09BEf46aA8980F1270b606A) |
+| AIOracle | [`0x0D32685A3b5F3618B8bd6B8f22e748E50144b7EE`](https://blockscout-testnet.polkadot.io/address/0x0D32685A3b5F3618B8bd6B8f22e748E50144b7EE) |
+| GovMindCore | [`0x111115259a41bd174c7C1f6B7eE36ec1Ab3CD5c1`](https://blockscout-testnet.polkadot.io/address/0x111115259a41bd174c7C1f6B7eE36ec1Ab3CD5c1) |
 
 ## Contracts
 
@@ -30,29 +58,43 @@ AI Backend (Node.js)
 |----------|---------|
 | `IdentityVault.sol` | Stores governance identities: 6-axis preference weights, risk tolerance, per-track AI delegation config |
 | `AIOracle.sol` | Receives AI analyses from backend, stores on-chain with IPFS references |
-| `GovMindCore.sol` | Orchestrates manual + AI votes, tracks stats, interfaces with governance precompiles |
+| `GovMindCore.sol` | Orchestrates manual + AI votes, personalization engine (_computeAlignmentScore), tracks stats |
+
+### Personalization Algorithm
+
+```
+getPersonalizedInsight(user, referendum):
+  1. Fetch AI base analysis from AIOracle
+  2. Load user's 6-axis preferences from IdentityVault
+  3. Map proposal category → supporting/opposing preference axes
+  4. Compute alignment score (0-100) with risk penalty
+  5. Alignment ≥ 60 → push toward Aye
+     Alignment ≤ 40 → push toward Nay
+     41-59 → keep base AI recommendation
+  6. Return personalized recommendation + adjusted confidence
+```
+
+**Result:** Same proposal, different users, different recommendations — all computed on-chain.
 
 ## Quick Start
 
 ```bash
-# Install dependencies
+# === Smart Contracts ===
 forge install
-
-# Build contracts
 forge build
-
-# Run tests
-forge test
-
-# Run tests with verbosity
-forge test -vvv
+forge test -vvv    # 40 tests including personalization + fuzz tests
 
 # Deploy to Polkadot Hub TestNet
-# 1. Get PAS tokens from https://faucet.polkadot.io
-# 2. Set your private key in .env
-cp .env.example .env
-# 3. Deploy
 forge script script/Deploy.s.sol --rpc-url https://services.polkadothub-rpc.com/testnet --broadcast
+
+# === AI Backend ===
+cd backend && npm install
+# Set OPENAI_API_KEY in .env
+npm start          # Fetches proposals → AI analysis → publishes on-chain
+
+# === Frontend ===
+cd frontend && npm install
+npm run dev        # Opens at http://localhost:3000
 ```
 
 ## Network Config
@@ -68,21 +110,22 @@ forge script script/Deploy.s.sol --rpc-url https://services.polkadothub-rpc.com/
 ## Key Features
 
 - **Governance Identity** — 6-axis preference system (treasury conservative ↔ growth, technical progressive ↔ conservative, community ↔ infrastructure)
-- **AI Proposal Analysis** — Risk scoring, treasury impact, category classification, reasoning chains
+- **AI Proposal Analysis** — Risk scoring, treasury impact, category classification, enriched with Polkassembly community data
+- **Personalized Recommendations** — On-chain alignment computation means different users get different advice
 - **Per-Track Delegation** — Enable AI voting on specific OpenGov tracks with amount/conviction limits
 - **Confidence Thresholds** — AI only auto-votes when confidence exceeds user-set minimum
 - **Vote History** — Full on-chain audit trail of manual and AI-assisted votes
-
-## Precompile Integration
-
-- **XCM Precompile** (`0x...0a0000`) — Cross-chain treasury/staking data queries
-- **Governance Precompile** — Vote execution on OpenGov referenda (mock provided, production-ready interface)
+- **Polkassembly Integration** — Live voting tally, community sentiment, spending breakdowns feed into AI analysis
 
 ## Tech Stack
 
-- **Solidity 0.8.28** — Smart contracts
-- **Foundry** — Build, test, deploy
+- **Solidity 0.8.28** — Smart contracts with on-chain personalization
+- **Foundry** — Build, test (40 tests + fuzz), deploy
 - **OpenZeppelin v5** — Access control, reentrancy guards
+- **Next.js 14** — Frontend with App Router
+- **Wagmi v2 + RainbowKit** — Wallet connection & contract interaction
+- **OpenAI GPT-4o-mini** — Proposal analysis engine
+- **Polkassembly API** — Enriched governance data (Klara data layer)
 
 ## License
 
