@@ -1,0 +1,13 @@
+{
+  "name": "govmind-backend",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "dotenv": "^17.2.4",
+    "ethers": "^6.16.0",
+    "openai": "^4.0.0"
+  }
+}
