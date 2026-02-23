@@ -40,6 +40,15 @@ async function main() {
     console.log(`  Title: ${proposal.title}`);
     console.log(`  Track: ${proposal.trackName} (${proposal.track})`);
     console.log(`  State: ${proposal.state}`);
+    if (proposal.tally?.ayes > 0 || proposal.tally?.nays > 0) {
+      console.log(`  Tally: ${proposal.tally.ayePercent}% Aye (${proposal.tally.ayes.toLocaleString()} DOT) vs ${proposal.tally.nays.toLocaleString()} DOT Nay`);
+    }
+    if (proposal.commentAnalysis?.total > 0) {
+      console.log(`  Discussion: ${proposal.commentAnalysis.summary}`);
+    }
+    if (proposal.spendingInfo?.totalAmountDOT > 0) {
+      console.log(`  Requesting: ${proposal.spendingInfo.totalAmountDOT.toLocaleString()} DOT in ${proposal.spendingInfo.paymentCount} tranches`);
+    }
 
     try {
       // Check if already on-chain
