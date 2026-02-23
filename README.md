@@ -48,9 +48,9 @@ They are complementary: Klara is the **information layer**, GovMind is the **dec
 
 | Contract | Address |
 |----------|---------|
-| IdentityVault | [`0xe5273E84634D9A81C09BEf46aA8980F1270b606A`](https://blockscout-testnet.polkadot.io/address/0xe5273E84634D9A81C09BEf46aA8980F1270b606A) |
-| AIOracle | [`0x0D32685A3b5F3618B8bd6B8f22e748E50144b7EE`](https://blockscout-testnet.polkadot.io/address/0x0D32685A3b5F3618B8bd6B8f22e748E50144b7EE) |
-| GovMindCore | [`0x111115259a41bd174c7C1f6B7eE36ec1Ab3CD5c1`](https://blockscout-testnet.polkadot.io/address/0x111115259a41bd174c7C1f6B7eE36ec1Ab3CD5c1) |
+| IdentityVault | [`0x9847Be9B20f23b2cb12C2D6C49B58772096E45eF`](https://blockscout-testnet.polkadot.io/address/0x9847Be9B20f23b2cb12C2D6C49B58772096E45eF) |
+| AIOracle | [`0xC762A770E8A50887232497032be4CD19EC2C3478`](https://blockscout-testnet.polkadot.io/address/0xC762A770E8A50887232497032be4CD19EC2C3478) |
+| GovMindCore | [`0x36B98748d41AAB1E50ca0F29E6dC9c4372C74C6e`](https://blockscout-testnet.polkadot.io/address/0x36B98748d41AAB1E50ca0F29E6dC9c4372C74C6e) |
 
 ## Contracts
 

@@ -14,9 +14,9 @@ export const POLKADOT_HUB_TESTNET = {
 } as const;
 
 export const ADDRESSES = {
-  identityVault: "0xe5273E84634D9A81C09BEf46aA8980F1270b606A" as `0x${string}`,
-  aiOracle: "0x0D32685A3b5F3618B8bd6B8f22e748E50144b7EE" as `0x${string}`,
-  govMindCore: "0x111115259a41bd174c7C1f6B7eE36ec1Ab3CD5c1" as `0x${string}`,
+  identityVault: "0x9847Be9B20f23b2cb12C2D6C49B58772096E45eF" as `0x${string}`,
+  aiOracle: "0xC762A770E8A50887232497032be4CD19EC2C3478" as `0x${string}`,
+  govMindCore: "0x36B98748d41AAB1E50ca0F29E6dC9c4372C74C6e" as `0x${string}`,
 };
 
 export const IDENTITY_VAULT_ABI = [

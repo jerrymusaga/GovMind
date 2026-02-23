@@ -142,7 +142,7 @@ async function runCycle() {
   console.log(`  Skipped:          ${skipped}`);
   console.log(`  Failed:           ${failed}`);
   console.log(
-    `\nExplorer: https://blockscout-testnet.polkadot.io/address/${process.env.AI_ORACLE_ADDRESS || "0x0D32685A3b5F3618B8bd6B8f22e748E50144b7EE"}`
+    `\nExplorer: https://blockscout-testnet.polkadot.io/address/${process.env.AI_ORACLE_ADDRESS || "0xC762A770E8A50887232497032be4CD19EC2C3478"}`
   );
 
   return { analyzed, updated, skipped, failed };
