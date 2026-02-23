@@ -257,6 +257,106 @@ contract GovMindTest is Test {
     }
 
     // ================================================================
+    //                  UPDATE ANALYSIS TESTS
+    // ================================================================
+
+    function test_UpdateAnalysis() public {
+        // First publish
+        _publishAnalysis(42);
+
+        AIOracle.ProposalAnalysis memory v1 = oracle.getAnalysis(42);
+        assertEq(v1.version, 1);
+        assertEq(v1.recommendation, int8(1)); // Aye
+        assertEq(v1.riskScore, 65);
+
+        // Simulate: new community concerns detected → oracle re-analyzes
+        // Recommendation flips from Aye to Nay, risk increases
+        vm.prank(oracleBackend);
+        oracle.updateAnalysis(
+            42,       // same referendum
+            85,       // riskScore increased (was 65)
+            0,        // categoryId unchanged
+            -1,       // recommendation flipped to Nay
+            72,       // confidence
+            50000 ether,
+            230,
+            "QmUpdatedAnalysis_v2"
+        );
+
+        AIOracle.ProposalAnalysis memory v2 = oracle.getAnalysis(42);
+        assertEq(v2.version, 2);
+        assertEq(v2.recommendation, int8(-1)); // Now Nay
+        assertEq(v2.riskScore, 85);
+        assertEq(oracle.totalUpdates(), 1);
+        // totalAnalyses should NOT increment on update
+        assertEq(oracle.totalAnalyses(), 1);
+    }
+
+    function test_UpdateAnalysisChangesPersonalization() public {
+        // Publish initial Aye analysis
+        _publishAnalysis(42);
+
+        // Growth user → should get Aye on treasury spend
+        {
+            uint8[] memory axes = new uint8[](2);
+            uint8[] memory weights = new uint8[](2);
+            axes[0] = 0; weights[0] = 10;
+            axes[1] = 1; weights[1] = 90;
+
+            vm.prank(user1);
+            vault.createIdentity(50, 50, 1000 ether, "", axes, weights);
+        }
+
+        (int8 recBefore, , , ,) = core.getPersonalizedInsight(user1, 42);
+        assertEq(recBefore, int8(1)); // Aye
+
+        // Oracle updates: AI now says Nay (e.g., community raised red flags)
+        vm.prank(oracleBackend);
+        oracle.updateAnalysis(42, 80, 0, -1, 70, 50000 ether, 230, "QmV2");
+
+        // Growth user + Nay base → personalization pushes to Abstain (conflicting signals)
+        // alignment is high (~90) but base rec is Nay → conflict → Abstain
+        // Actually per our logic: alignment >= 60 + baseRec < 0 → Abstain
+        (int8 recAfter, , , ,) = core.getPersonalizedInsight(user1, 42);
+        assertEq(recAfter, int8(0)); // Abstain due to conflicting signals
+    }
+
+    function test_RevertUpdateNonexistentAnalysis() public {
+        vm.prank(oracleBackend);
+        vm.expectRevert(AIOracle.AnalysisDoesNotExist.selector);
+        oracle.updateAnalysis(999, 50, 0, 0, 50, 0, 0, "QmNope");
+    }
+
+    function test_RevertUpdateUnauthorized() public {
+        _publishAnalysis(42);
+
+        vm.prank(user1);
+        vm.expectRevert(AIOracle.NotAuthorizedOracle.selector);
+        oracle.updateAnalysis(42, 50, 0, 0, 50, 0, 0, "QmHack");
+    }
+
+    function test_MultipleUpdatesVersionIncrement() public {
+        _publishAnalysis(42);
+
+        for (uint256 i = 0; i < 5; i++) {
+            vm.prank(oracleBackend);
+            oracle.updateAnalysis(
+                42,
+                uint8(50 + i * 5),
+                0,
+                int8(i % 2 == 0 ? int256(1) : int256(-1)),
+                uint8(60 + i * 5),
+                50000 ether,
+                230,
+                string(abi.encodePacked("QmUpdate_", vm.toString(i)))
+            );
+        }
+
+        assertEq(oracle.getAnalysisVersion(42), 6); // 1 initial + 5 updates
+        assertEq(oracle.totalUpdates(), 5);
+    }
+
+    // ================================================================
     //                    GOVMIND CORE TESTS
     // ================================================================
 
