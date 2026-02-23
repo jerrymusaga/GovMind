@@ -5,7 +5,7 @@ import { dirname, resolve } from "path";
 const __dirname = dirname(fileURLToPath(import.meta.url));
 dotenv.config({ path: resolve(__dirname, "../.env") });
 
-import { fetchActiveReferenda } from "./subsquare.js";
+import { fetchActiveReferenda, fetchHistoricalPrecedents } from "./subsquare.js";
 import { analyzeProposal } from "./analyzer.js";
 import {
   publishAnalysis,
@@ -15,6 +15,7 @@ import {
   getOracleAddress,
 } from "./contracts.js";
 import { detectChanges, saveSnapshot, cooldownExpired } from "./detector.js";
+import { startApiServer, storeAnalysis, storeProposalMeta } from "./api.js";
 
 // Polling interval: 5 minutes (set via env or default)
 const POLL_INTERVAL_MS = Number(process.env.POLL_INTERVAL_MS) || 5 * 60 * 1000;
@@ -53,11 +54,22 @@ async function runCycle() {
     try {
       const exists = await hasExistingAnalysis(proposal.referendumIndex);
 
+      // Fetch historical precedents for richer analysis
+      console.log("  Fetching historical precedents...");
+      const historicalData = await fetchHistoricalPrecedents(proposal, 3);
+      if (historicalData.length > 0) {
+        console.log(`  Found ${historicalData.length} historical precedent(s)`);
+      }
+
       if (!exists) {
         // === FIRST ANALYSIS ===
-        console.log("  [NEW] Analyzing with GPT...");
-        const analysis = await analyzeProposal(proposal);
+        console.log("  [NEW] Running deep analysis with GPT...");
+        const analysis = await analyzeProposal(proposal, historicalData);
         logAnalysis(analysis);
+
+        // Store rich analysis for API
+        storeAnalysis(proposal.referendumIndex, analysis);
+        storeProposalMeta(proposal.referendumIndex, proposal);
 
         console.log("  Publishing to AIOracle...");
         const receipt = await publishAnalysis(
@@ -82,8 +94,12 @@ async function runCycle() {
             console.log(`    → ${reason}`);
           }
 
-          const analysis = await analyzeProposal(proposal);
+          const analysis = await analyzeProposal(proposal, historicalData);
           logAnalysis(analysis);
+
+          // Always store updated rich analysis
+          storeAnalysis(proposal.referendumIndex, analysis);
+          storeProposalMeta(proposal.referendumIndex, proposal);
 
           // Compare with on-chain to see if update is worthwhile
           const onChain = await getOnChainAnalysis(proposal.referendumIndex);
@@ -91,7 +107,6 @@ async function runCycle() {
           const riskDelta = onChain ? Math.abs(onChain.riskScore - analysis.riskScore) : 0;
           const confDelta = onChain ? Math.abs(onChain.confidence - analysis.confidence) : 0;
 
-          // Only push update if recommendation flipped OR risk/confidence shifted significantly
           if (recChanged || riskDelta >= 10 || confDelta >= 15) {
             console.log(`  Publishing update to AIOracle...`);
             if (recChanged) {
@@ -112,7 +127,7 @@ async function runCycle() {
             }
           } else {
             console.log(`  Changes detected but analysis delta too small, skipping update.`);
-            saveSnapshot(proposal); // Still save snapshot to track new state
+            saveSnapshot(proposal);
             skipped++;
           }
         } else if (changed) {
@@ -120,7 +135,7 @@ async function runCycle() {
           skipped++;
         } else {
           console.log("  No significant changes detected, skipping.\n");
-          saveSnapshot(proposal); // Keep snapshot fresh
+          saveSnapshot(proposal);
           skipped++;
         }
       }
@@ -153,6 +168,12 @@ function logAnalysis(analysis) {
     `  Result: ${recLabel(analysis.recommendation)} | Risk: ${analysis.riskScore}/100 | Confidence: ${analysis.confidence}/100`
   );
   console.log(`  Summary: ${analysis.summary}`);
+  if (analysis.deepAnalysis) {
+    const da = analysis.deepAnalysis;
+    console.log(`  Risk factors: ${da.riskFactors.map((r) => `${r.factor} (${r.severity})`).join(", ")}`);
+    console.log(`  Community: ${da.communitySentiment.overallSignal} (score: ${da.communitySentiment.weightedScore})`);
+    console.log(`  Voting: ${da.votingMomentum.trend}`);
+  }
 }
 
 function recLabel(rec) {
@@ -174,12 +195,16 @@ async function main() {
     process.exit(1);
   }
 
+  // Start API server for frontend to consume rich analysis
+  const API_PORT = Number(process.env.API_PORT) || 3001;
+  startApiServer(API_PORT);
+
   // Run first cycle
   await runCycle();
 
-  // If --once flag, exit after single run
+  // If --once flag, keep API server alive but stop polling
   if (RUN_ONCE) {
-    console.log("\n--once flag set, exiting.");
+    console.log("\n--once flag set, analysis cycle complete. API server still running on port " + API_PORT);
     return;
   }
 
