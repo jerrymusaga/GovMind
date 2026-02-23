@@ -6,7 +6,9 @@ import "./interfaces/IGovMindOracle.sol";
 
 /// @title AIOracle - AI Analysis Bridge
 /// @notice Receives AI-generated proposal analyses from the backend
-///         and stores them on-chain for the GovMindCore to use
+///         and stores them on-chain for the GovMindCore to use.
+///         Supports re-analysis when community data changes (new comments,
+///         tally swings, status changes) via updateAnalysis().
 /// @dev The oracle address is a trusted backend signer. In production,
 ///      this would use signature verification or a decentralized oracle network.
 contract AIOracle is Ownable, IGovMindOracle {
@@ -45,6 +47,7 @@ contract AIOracle is Ownable, IGovMindOracle {
         string analysisIPFSHash;
         uint256 analyzedAt;
         bool exists;
+        uint256 version;             // Incremented on each re-analysis
     }
 
     /// @notice Pending analysis request
@@ -70,8 +73,11 @@ contract AIOracle is Ownable, IGovMindOracle {
     /// @notice Minimum fee to request an analysis (anti-spam)
     uint256 public analysisRequestFee;
 
-    /// @notice Total analyses published
+    /// @notice Total analyses published (includes first publish only, not updates)
     uint256 public totalAnalyses;
+
+    /// @notice Total re-analyses performed
+    uint256 public totalUpdates;
 
     /// @notice Array of all analyzed referendum indices
     uint256[] public analyzedReferenda;
@@ -89,6 +95,14 @@ contract AIOracle is Ownable, IGovMindOracle {
         int8 recommendation,
         uint8 confidence
     );
+    event AnalysisUpdated(
+        uint256 indexed referendumIndex,
+        uint8 riskScore,
+        int8 oldRecommendation,
+        int8 newRecommendation,
+        uint8 confidence,
+        uint256 version
+    );
     event RequestFeeUpdated(uint256 newFee);
 
     // ============================================================
@@ -97,6 +111,7 @@ contract AIOracle is Ownable, IGovMindOracle {
 
     error NotAuthorizedOracle();
     error AnalysisAlreadyExists();
+    error AnalysisDoesNotExist();
     error RequestAlreadyExists();
     error InsufficientFee();
     error InvalidRiskScore();
@@ -170,7 +185,7 @@ contract AIOracle is Ownable, IGovMindOracle {
     //                  ANALYSIS FULFILLMENT
     // ============================================================
 
-    /// @notice Oracle publishes an AI analysis for a referendum
+    /// @notice Oracle publishes an AI analysis for a referendum (first time only)
     /// @dev Can be called proactively (without a request) or to fulfill a request
     function publishAnalysis(
         uint256 _referendumIndex,
@@ -184,9 +199,7 @@ contract AIOracle is Ownable, IGovMindOracle {
         string calldata _analysisIPFSHash
     ) external onlyOracle {
         if (analyses[_referendumIndex].exists) revert AnalysisAlreadyExists();
-        if (_riskScore > 100) revert InvalidRiskScore();
-        if (_confidence > 100) revert InvalidConfidence();
-        if (_recommendation < -1 || _recommendation > 1) revert InvalidRecommendation();
+        _validateParams(_riskScore, _confidence, _recommendation);
 
         analyses[_referendumIndex] = ProposalAnalysis({
             referendumIndex: _referendumIndex,
@@ -199,7 +212,8 @@ contract AIOracle is Ownable, IGovMindOracle {
             treasuryImpactBps: _treasuryImpactBps,
             analysisIPFSHash: _analysisIPFSHash,
             analyzedAt: block.timestamp,
-            exists: true
+            exists: true,
+            version: 1
         });
 
         // Mark request as fulfilled if one exists
@@ -212,6 +226,52 @@ contract AIOracle is Ownable, IGovMindOracle {
 
         emit AnalysisPublished(_referendumIndex, _riskScore, _recommendation, _confidence);
         emit AnalysisFulfilled(_referendumIndex, _riskScore, _recommendation);
+    }
+
+    /// @notice Re-analyze a referendum when community data has changed
+    /// @dev Called by oracle when it detects significant changes:
+    ///      - New comments with concerns/endorsements
+    ///      - Tally swing > threshold
+    ///      - Status change (e.g. Deciding → Confirming)
+    ///      - Proposal content edited
+    ///      Preserves version history on-chain via events.
+    function updateAnalysis(
+        uint256 _referendumIndex,
+        uint8 _riskScore,
+        uint8 _categoryId,
+        int8 _recommendation,
+        uint8 _confidence,
+        uint256 _requestedAmountDOT,
+        uint256 _treasuryImpactBps,
+        string calldata _analysisIPFSHash
+    ) external onlyOracle {
+        if (!analyses[_referendumIndex].exists) revert AnalysisDoesNotExist();
+        _validateParams(_riskScore, _confidence, _recommendation);
+
+        ProposalAnalysis storage existing = analyses[_referendumIndex];
+        int8 oldRec = existing.recommendation;
+        uint256 newVersion = existing.version + 1;
+
+        existing.riskScore = _riskScore;
+        existing.categoryId = _categoryId;
+        existing.recommendation = _recommendation;
+        existing.confidence = _confidence;
+        existing.requestedAmountDOT = _requestedAmountDOT;
+        existing.treasuryImpactBps = _treasuryImpactBps;
+        existing.analysisIPFSHash = _analysisIPFSHash;
+        existing.analyzedAt = block.timestamp;
+        existing.version = newVersion;
+
+        totalUpdates++;
+
+        emit AnalysisUpdated(
+            _referendumIndex,
+            _riskScore,
+            oldRec,
+            _recommendation,
+            _confidence,
+            newVersion
+        );
     }
 
     // ============================================================
@@ -230,6 +290,11 @@ contract AIOracle is Ownable, IGovMindOracle {
     /// @notice Check if analysis exists for a referendum
     function hasAnalysis(uint256 _referendumIndex) external view returns (bool) {
         return analyses[_referendumIndex].exists;
+    }
+
+    /// @notice Get the version (re-analysis count) for a referendum
+    function getAnalysisVersion(uint256 _referendumIndex) external view returns (uint256) {
+        return analyses[_referendumIndex].version;
     }
 
     /// @notice Get the total number of analyzed referenda
@@ -265,5 +330,19 @@ contract AIOracle is Ownable, IGovMindOracle {
     function withdrawFees(address payable _to) external onlyOwner {
         (bool success, ) = _to.call{value: address(this).balance}("");
         require(success, "Transfer failed");
+    }
+
+    // ============================================================
+    //                      INTERNAL
+    // ============================================================
+
+    function _validateParams(
+        uint8 _riskScore,
+        uint8 _confidence,
+        int8 _recommendation
+    ) internal pure {
+        if (_riskScore > 100) revert InvalidRiskScore();
+        if (_confidence > 100) revert InvalidConfidence();
+        if (_recommendation < -1 || _recommendation > 1) revert InvalidRecommendation();
     }
 }
