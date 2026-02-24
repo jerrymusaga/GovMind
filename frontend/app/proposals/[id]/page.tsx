@@ -508,6 +508,7 @@ function VotePanel({
   const { address, isConnected } = useAccount();
   const [conviction, setConviction] = useState(1);
   const [amount, setAmount] = useState("10");
+  const [votingAye, setVotingAye] = useState<boolean | null>(null);
 
   const { data: alreadyVoted } = useReadContract({
     address: ADDRESSES.govMindCore,
@@ -526,6 +527,7 @@ function VotePanel({
     useWaitForTransactionReceipt({ hash: voteTxHash });
 
   const handleVote = (aye: boolean) => {
+    setVotingAye(aye);
     castVote({
       address: ADDRESSES.govMindCore,
       abi: GOVMIND_CORE_ABI,
@@ -597,7 +599,7 @@ function VotePanel({
             disabled={isPending || isConfirming}
             className="py-3 rounded-xl font-semibold text-sm bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-500/25 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
           >
-            {isPending || isConfirming ? (
+            {(isPending || isConfirming) && votingAye === true ? (
               <Loader2 className="w-4 h-4 animate-spin" />
             ) : (
               <ThumbsUp className="w-4 h-4" />
@@ -609,7 +611,7 @@ function VotePanel({
             disabled={isPending || isConfirming}
             className="py-3 rounded-xl font-semibold text-sm bg-red-500/15 text-red-400 border border-red-500/30 hover:bg-red-500/25 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
           >
-            {isPending || isConfirming ? (
+            {(isPending || isConfirming) && votingAye === false ? (
               <Loader2 className="w-4 h-4 animate-spin" />
             ) : (
               <ThumbsDown className="w-4 h-4" />
