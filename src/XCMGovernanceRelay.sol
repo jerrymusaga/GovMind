@@ -28,7 +28,7 @@ contract XCMGovernanceRelay is Ownable {
     // ============================================================
 
     /// @notice XCM precompile on Polkadot Hub at fixed address
-    IXcm constant XCM_PRECOMPILE = IXcm(0x00000000000000000000000000000000000A0000);
+    IXcm constant XCM_PRECOMPILE = IXcm(address(0x0A0000));
 
     /// @notice convictionVoting pallet index on Polkadot Relay Chain
     uint8 constant CONVICTION_VOTING_PALLET_INDEX = 20;

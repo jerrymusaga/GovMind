@@ -658,9 +658,9 @@ contract GovMindTest is Test {
         assertEq(address(core.identityVault()), address(newVault));
     }
 
-    function test_ToggleRealGovernance() public {
-        core.toggleRealGovernance(true);
-        assertTrue(core.useRealGovernance());
+    function test_ToggleXCMRelay() public {
+        core.toggleXCMRelay(true);
+        assertTrue(core.xcmRelayEnabled());
     }
 
     // ================================================================

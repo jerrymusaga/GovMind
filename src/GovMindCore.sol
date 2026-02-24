@@ -5,6 +5,7 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "./IdentityVault.sol";
 import "./AIOracle.sol";
+import "./XCMGovernanceRelay.sol";
 
 /// @title GovMindCore - AI Governance Intelligence Layer
 /// @notice Main orchestrator that coordinates AI analysis, user identities,
@@ -50,11 +51,11 @@ contract GovMindCore is Ownable, ReentrancyGuard {
     /// @notice Reference to AIOracle contract
     AIOracle public aiOracle;
 
-    /// @notice Governance precompile address (set when available)
-    address public governancePrecompile;
+    /// @notice XCM Governance Relay contract for cross-chain voting
+    XCMGovernanceRelay public xcmRelay;
 
-    /// @notice Whether to use real governance precompile or internal tracking
-    bool public useRealGovernance;
+    /// @notice Whether to relay votes to Relay Chain via XCM
+    bool public xcmRelayEnabled;
 
     /// @notice User => referendum => VoteRecord
     mapping(address => mapping(uint256 => VoteRecord)) public voteRecords;
@@ -95,8 +96,14 @@ contract GovMindCore is Ownable, ReentrancyGuard {
         string reasoningHash
     );
 
-    event GovernancePrecompileUpdated(address indexed precompile);
-    event RealGovernanceToggled(bool enabled);
+    event XCMRelayUpdated(address indexed relay);
+    event XCMRelayToggled(bool enabled);
+    event VoteRelayedViaXCM(
+        address indexed voter,
+        uint256 indexed referendumIndex,
+        bool aye,
+        uint256 conviction
+    );
 
     // ============================================================
     //                         ERRORS
@@ -134,7 +141,7 @@ contract GovMindCore is Ownable, ReentrancyGuard {
     ) Ownable(msg.sender) {
         identityVault = IdentityVault(_identityVault);
         aiOracle = AIOracle(_aiOracle);
-        useRealGovernance = false; // Start with internal tracking
+        xcmRelayEnabled = false; // Start with internal tracking, enable after XCM relay is deployed
     }
 
     // ============================================================
@@ -167,15 +174,16 @@ contract GovMindCore is Ownable, ReentrancyGuard {
             ""      // no reasoning hash
         );
 
-        // Execute on-chain vote via precompile if available
-        if (useRealGovernance && governancePrecompile != address(0)) {
-            _executeGovernanceVote(
+        // Relay vote to Relay Chain via XCM if enabled
+        if (xcmRelayEnabled && address(xcmRelay) != address(0)) {
+            xcmRelay.relayVote(
                 msg.sender,
-                _referendumIndex,
+                uint32(_referendumIndex),
                 _aye,
-                _conviction,
-                _amount
+                uint8(_conviction),
+                uint128(_amount)
             );
+            emit VoteRelayedViaXCM(msg.sender, _referendumIndex, _aye, _conviction);
         }
 
         emit VoteCast(msg.sender, _referendumIndex, _aye, _conviction, false, 0);
@@ -243,9 +251,16 @@ contract GovMindCore is Ownable, ReentrancyGuard {
             _reasoningHash
         );
 
-        // Execute on-chain vote via precompile if available
-        if (useRealGovernance && governancePrecompile != address(0)) {
-            _executeGovernanceVote(_user, _referendumIndex, _aye, _conviction, _amount);
+        // Relay vote to Relay Chain via XCM if enabled
+        if (xcmRelayEnabled && address(xcmRelay) != address(0)) {
+            xcmRelay.relayVote(
+                _user,
+                uint32(_referendumIndex),
+                _aye,
+                uint8(_conviction),
+                uint128(_amount)
+            );
+            emit VoteRelayedViaXCM(_user, _referendumIndex, _aye, _conviction);
         }
 
         totalAIVotes++;
@@ -396,16 +411,16 @@ contract GovMindCore is Ownable, ReentrancyGuard {
     //                       ADMIN
     // ============================================================
 
-    /// @notice Set the governance precompile address
-    function setGovernancePrecompile(address _precompile) external onlyOwner {
-        governancePrecompile = _precompile;
-        emit GovernancePrecompileUpdated(_precompile);
+    /// @notice Set the XCM Governance Relay contract
+    function setXCMRelay(address _relay) external onlyOwner {
+        xcmRelay = XCMGovernanceRelay(_relay);
+        emit XCMRelayUpdated(_relay);
     }
 
-    /// @notice Toggle between real governance precompile and internal tracking
-    function toggleRealGovernance(bool _enabled) external onlyOwner {
-        useRealGovernance = _enabled;
-        emit RealGovernanceToggled(_enabled);
+    /// @notice Toggle XCM vote relay to Relay Chain
+    function toggleXCMRelay(bool _enabled) external onlyOwner {
+        xcmRelayEnabled = _enabled;
+        emit XCMRelayToggled(_enabled);
     }
 
     /// @notice Update contract references
@@ -531,25 +546,4 @@ contract GovMindCore is Ownable, ReentrancyGuard {
         totalVotesCast++;
     }
 
-    /// @notice Execute vote via governance precompile
-    /// @dev Placeholder - will be implemented when precompile interface is confirmed
-    function _executeGovernanceVote(
-        address _voter,
-        uint256 _referendumIndex,
-        bool _aye,
-        uint256 _conviction,
-        uint256 _amount
-    ) internal {
-        // TODO: When governance precompile is confirmed live on testnet:
-        //
-        // IGovernancePrecompile gov = IGovernancePrecompile(governancePrecompile);
-        // gov.vote(_referendumIndex, _aye, _conviction, _amount);
-        //
-        // For now, vote state is tracked internally via _recordVote.
-        // The architecture is ready to plug in the precompile with a single
-        // function body change.
-        //
-        // For the hackathon demo, we demonstrate the flow works end-to-end
-        // with internal state, and document the precompile integration path.
-    }
 }
