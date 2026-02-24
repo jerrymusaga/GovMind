@@ -1,31 +1,147 @@
 # GovMind — AI Governance Intelligence Layer for Polkadot
 
-> Personalized AI-powered governance for Polkadot OpenGov. Two users, same proposal, different votes.
+> Personalized AI governance + cross-chain voting via XCM. Two users, same proposal, different votes — executed on the Relay Chain from Hub EVM.
+
+**Track 1: EVM Smart Contract — Polkadot Solidity Hackathon 2026**
 
 ## What is GovMind?
 
-GovMind makes Polkadot OpenGov accessible through AI. Users create a "Governance Identity" that captures their values and risk preferences. The AI analyzes every proposal — risk scoring, treasury impact, community sentiment, on-chain voting patterns — and can auto-vote on behalf of users according to their personalized profile.
+GovMind makes Polkadot OpenGov accessible through AI and cross-chain execution. Users create a **Governance Identity** — a 6-axis preference profile — and GovMind's AI analyzes every proposal with deep intelligence: treasury impact, risk factors, community sentiment, voting momentum, and historical precedent. The AI then produces **personalized recommendations** that differ per user based on their values.
 
-A treasury-conservative user and a growth-focused user see the **same proposal** but get **different AI recommendations**. That's personalized governance.
+When users vote, GovMind **SCALE-encodes the `convictionVoting.vote()` call** in pure Solidity and **relays it to the Polkadot Relay Chain via XCM** — making it the first EVM dApp to execute OpenGov votes cross-chain.
+
+A treasury-conservative user and a growth-focused user see the **same proposal** but get **different AI recommendations** — and both votes are relayed to the Relay Chain through a single XCM Transact.
 
 ## Architecture
 
 ```
-Frontend (Next.js + Wagmi + RainbowKit)
-    ↕
-Smart Contracts (Solidity on Polkadot Hub EVM)
-  ├── src/GovMindCore.sol    — Vote orchestration & personalization engine
-  ├── src/IdentityVault.sol  — User governance preference storage (6-axis)
-  └── src/AIOracle.sol       — AI analysis bridge (on-chain proof)
-    ↕
-AI Backend (Node.js + OpenAI GPT)
-  ├── Enriched data from Polkassembly (Klara data layer)
-  │     ├── Live voting tally (ayes/nays/support in DOT)
-  │     ├── Community comments & sentiment analysis
-  │     ├── On-chain proposed_call spending breakdown
-  │     └── Status timeline & reaction data
-  ├── GPT-4o-mini analysis with community context
-  └── On-chain publishing via AIOracle contract
+┌─────────────────────────────────────────────────────────────────┐
+│  Frontend (Next.js 14 + Wagmi v2 + RainbowKit + TailwindCSS)   │
+│  ├── Dashboard with live on-chain stats & XCM relay status      │
+│  ├── Proposal detail with deep AI analysis charts               │
+│  ├── Identity creation (6-axis radar chart + settings)          │
+│  └── Vote panel with conviction & amount controls               │
+└───────────────────────────────┬─────────────────────────────────┘
+                                │
+┌───────────────────────────────▼─────────────────────────────────┐
+│  Smart Contracts (Solidity 0.8.28 on Polkadot Hub EVM)          │
+│  ├── GovMindCore.sol      — Vote orchestration & personalization│
+│  ├── IdentityVault.sol    — 6-axis governance identity storage  │
+│  ├── AIOracle.sol         — AI analysis bridge (on-chain proof) │
+│  ├── XCMGovernanceRelay.sol — XCM vote relay to Relay Chain     │
+│  └── ScaleCodec.sol       — Pure Solidity SCALE encoding lib    │
+└───────────────────────────────┬─────────────────────────────────┘
+                                │ XCM Precompile (0x0A0000)
+                                ▼
+┌─────────────────────────────────────────────────────────────────┐
+│  Polkadot Relay Chain                                           │
+│  └── convictionVoting.vote() — Pallet index 20, call index 0   │
+└─────────────────────────────────────────────────────────────────┘
+                                ▲
+┌───────────────────────────────┴─────────────────────────────────┐
+│  AI Backend (Node.js + OpenAI GPT-4o-mini)                      │
+│  ├── Polkassembly API — voting tally, comments, spending data   │
+│  ├── Historical precedent matching — proposer track record      │
+│  ├── Deep analysis — treasury breakdown, risk factors, etc.     │
+│  ├── Change detection — re-analyzes on tally swings/new data    │
+│  └── REST API (port 3001) — serves rich analysis to frontend    │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+## Key Features
+
+### XCM Cross-Chain Voting
+- **First EVM dApp to relay OpenGov votes cross-chain** via XCM Transact
+- Pure Solidity SCALE codec encodes `convictionVoting.vote()` calls
+- XCM V4 message: `WithdrawAsset → BuyExecution → Transact → RefundSurplus → DepositAsset`
+- Sends through the XCM precompile at `0x0A0000` to the Relay Chain
+- Preview functions (`previewEncodedCall`, `previewXcmMessage`) for off-chain verification
+
+### AI-Powered Deep Analysis
+- **Treasury breakdown** — DOT requested, % of treasury, cost/month, value assessment
+- **Risk factors** — categorized with severity (low/medium/high/critical)
+- **Community sentiment** — weighted score from Polkassembly comments, concerns & endorsements
+- **Voting momentum** — aye/nay split, total stake, trend classification
+- **Historical precedent** — similar past proposals, proposer track record
+- **Strengths & weaknesses** — balanced pro/con assessment
+
+### Personalized Governance
+- **6-axis preference system** — Treasury Conservative ↔ Growth, Technical Progressive ↔ Conservative, Community ↔ Infrastructure
+- **On-chain alignment computation** — same proposal + different user = different recommendation
+- **Risk tolerance** — proposals exceeding user's risk threshold get penalty adjustments
+- **Confidence thresholds** — AI only auto-votes when confidence exceeds user-set minimum
+
+### Per-Track AI Delegation
+- Enable/disable AI voting on specific OpenGov tracks
+- Set maximum DOT amount and conviction per track
+- Toggle auto-vote master switch independently
+
+### Intelligent Re-Analysis
+- Detects changes: tally swings, new comments, status transitions
+- Re-runs AI analysis when significant changes occur
+- Only updates on-chain when recommendation or risk score changes materially
+- Cooldown prevents excessive re-analysis
+
+## Deployed Contracts (Polkadot Hub Testnet v3)
+
+| Contract | Address |
+|----------|---------|
+| IdentityVault | [`0x585153ef41D1a5f94cCBf403bba5520C71c2c4AD`](https://blockscout-testnet.polkadot.io/address/0x585153ef41D1a5f94cCBf403bba5520C71c2c4AD) |
+| AIOracle | [`0xfC595edB7098336071829fC48aDB269DFEd12104`](https://blockscout-testnet.polkadot.io/address/0xfC595edB7098336071829fC48aDB269DFEd12104) |
+| GovMindCore | [`0xBA56D8Ab673B276009EEdE5A19B2ddBb9839fAd2`](https://blockscout-testnet.polkadot.io/address/0xBA56D8Ab673B276009EEdE5A19B2ddBb9839fAd2) |
+| XCMGovernanceRelay | [`0xA9979547932a2Ce50C9C5d220Eb5e85598e44548`](https://blockscout-testnet.polkadot.io/address/0xA9979547932a2Ce50C9C5d220Eb5e85598e44548) |
+
+## Contracts
+
+| Contract | Purpose |
+|----------|---------|
+| `IdentityVault.sol` | Stores governance identities: 6-axis preference weights, risk tolerance, per-track AI delegation config |
+| `AIOracle.sol` | Receives AI analyses from backend, stores on-chain with IPFS references. Supports re-analysis with version tracking |
+| `GovMindCore.sol` | Orchestrates manual + AI votes, on-chain personalization engine (`_computeAlignmentScore`), XCM relay integration |
+| `XCMGovernanceRelay.sol` | SCALE-encodes `convictionVoting.vote()`, constructs XCM V4 message, sends via XCM precompile to Relay Chain |
+| `ScaleCodec.sol` | Pure Solidity SCALE encoding: compact u32/u64/u128, fixed-width u128 LE, Vec<u8> |
+
+### Personalization Algorithm
+
+```
+getPersonalizedInsight(user, referendum):
+  1. Fetch AI base analysis from AIOracle
+  2. Load user's 6-axis preferences from IdentityVault
+  3. Map proposal category → supporting/opposing preference axes
+  4. Compute alignment score (0-100) with risk penalty
+  5. Alignment >= 60 → push toward Aye
+     Alignment <= 40 → push toward Nay
+     41-59 → keep base AI recommendation
+  6. Return personalized recommendation + adjusted confidence
+```
+
+**Result:** Same proposal, different users, different recommendations — all computed on-chain.
+
+### XCM Vote Relay Flow
+
+```
+User votes on Hub EVM
+    │
+    ▼
+GovMindCore.vote()
+    │
+    ▼
+XCMGovernanceRelay.relayVote()
+    │
+    ├─ SCALE-encode convictionVoting.vote(poll_index, AccountVote::Standard{vote, balance})
+    │    └─ Vote byte: bit 7 = aye, bits 0-6 = conviction
+    │
+    ├─ Build XCM V4 message:
+    │    ├─ WithdrawAsset(DOT for fees)
+    │    ├─ BuyExecution(Unlimited weight limit)
+    │    ├─ Transact(SovereignAccount, encoded_call)
+    │    ├─ RefundSurplus
+    │    └─ DepositAsset(All → Here)
+    │
+    └─ XCM_PRECOMPILE.send(relay_chain_destination, xcm_message)
+         │
+         ▼
+    Polkadot Relay Chain executes convictionVoting.vote()
 ```
 
 ## Polkassembly / Klara Integration
@@ -39,42 +155,9 @@ GovMind integrates with **Polkassembly's data layer** (the same data that powers
 | **Proposed Call** | Exact spending amounts, payment tranches, beneficiaries | Precise treasury impact calculation |
 | **Status Timeline** | Submission → Deciding → Confirming → Executed | AI understands governance lifecycle stage |
 | **Reactions** | Thumbs up/down counts | Quick community sentiment signal |
+| **Historical Proposals** | Past proposals by same proposer/track | Proposer track record & precedent analysis |
 
-**Klara answers "what is this proposal?" — GovMind answers "should *you* vote for this, given *your* values?"**
-
-They are complementary: Klara is the **information layer**, GovMind is the **decision layer**. Better input from Polkassembly = better personalized output from GovMind.
-
-## Deployed Contracts (Polkadot Hub Testnet)
-
-| Contract | Address |
-|----------|---------|
-| IdentityVault | [`0x9847Be9B20f23b2cb12C2D6C49B58772096E45eF`](https://blockscout-testnet.polkadot.io/address/0x9847Be9B20f23b2cb12C2D6C49B58772096E45eF) |
-| AIOracle | [`0xC762A770E8A50887232497032be4CD19EC2C3478`](https://blockscout-testnet.polkadot.io/address/0xC762A770E8A50887232497032be4CD19EC2C3478) |
-| GovMindCore | [`0x36B98748d41AAB1E50ca0F29E6dC9c4372C74C6e`](https://blockscout-testnet.polkadot.io/address/0x36B98748d41AAB1E50ca0F29E6dC9c4372C74C6e) |
-
-## Contracts
-
-| Contract | Purpose |
-|----------|---------|
-| `IdentityVault.sol` | Stores governance identities: 6-axis preference weights, risk tolerance, per-track AI delegation config |
-| `AIOracle.sol` | Receives AI analyses from backend, stores on-chain with IPFS references |
-| `GovMindCore.sol` | Orchestrates manual + AI votes, personalization engine (_computeAlignmentScore), tracks stats |
-
-### Personalization Algorithm
-
-```
-getPersonalizedInsight(user, referendum):
-  1. Fetch AI base analysis from AIOracle
-  2. Load user's 6-axis preferences from IdentityVault
-  3. Map proposal category → supporting/opposing preference axes
-  4. Compute alignment score (0-100) with risk penalty
-  5. Alignment ≥ 60 → push toward Aye
-     Alignment ≤ 40 → push toward Nay
-     41-59 → keep base AI recommendation
-  6. Return personalized recommendation + adjusted confidence
-```
-
-**Result:** Same proposal, different users, different recommendations — all computed on-chain.
+**Klara answers "what is this proposal?" — GovMind answers "should *you* vote for this, given *your* values?" — and then relays that vote cross-chain.**
 
 ## Quick Start
 
@@ -82,15 +165,15 @@ getPersonalizedInsight(user, referendum):
 # === Smart Contracts ===
 forge install
 forge build
-forge test -vvv    # 40 tests including personalization + fuzz tests
+forge test -vvv    # 75 tests including XCM relay + SCALE codec + fuzz tests
 
 # Deploy to Polkadot Hub TestNet
 forge script script/Deploy.s.sol --rpc-url https://services.polkadothub-rpc.com/testnet --broadcast
 
 # === AI Backend ===
 cd backend && npm install
-# Set OPENAI_API_KEY in .env
-npm start          # Fetches proposals → AI analysis → publishes on-chain
+# Set OPENAI_API_KEY and PRIVATE_KEY in .env
+npm start          # Fetches proposals → deep AI analysis → publishes on-chain → serves API
 
 # === Frontend ===
 cd frontend && npm install
@@ -107,25 +190,42 @@ npm run dev        # Opens at http://localhost:3000
 | Explorer | https://blockscout-testnet.polkadot.io |
 | Faucet | https://faucet.polkadot.io |
 
-## Key Features
+## Test Suite
 
-- **Governance Identity** — 6-axis preference system (treasury conservative ↔ growth, technical progressive ↔ conservative, community ↔ infrastructure)
-- **AI Proposal Analysis** — Risk scoring, treasury impact, category classification, enriched with Polkassembly community data
-- **Personalized Recommendations** — On-chain alignment computation means different users get different advice
-- **Per-Track Delegation** — Enable AI voting on specific OpenGov tracks with amount/conviction limits
-- **Confidence Thresholds** — AI only auto-votes when confidence exceeds user-set minimum
-- **Vote History** — Full on-chain audit trail of manual and AI-assisted votes
-- **Polkassembly Integration** — Live voting tally, community sentiment, spending breakdowns feed into AI analysis
+**75 tests** across two test files:
+
+| File | Tests | Coverage |
+|------|-------|----------|
+| `GovMind.t.sol` | 45 | Identity creation, preference weights, AI analysis, personalization, alignment scoring, manual/AI voting, access control, edge cases, fuzz tests |
+| `XCMRelay.t.sol` | 30 | SCALE compact encoding, U128 LE encoding, vote byte encoding, XCM message structure, relay execution with mocked precompile, access control, weight/fee admin, 4 fuzz tests (256 runs each) |
+
+```bash
+forge test -vvv          # Run all 75 tests
+forge test --match-path test/XCMRelay.t.sol -vvv  # XCM tests only
+```
 
 ## Tech Stack
 
-- **Solidity 0.8.28** — Smart contracts with on-chain personalization
-- **Foundry** — Build, test (40 tests + fuzz), deploy
+- **Solidity 0.8.28** — Smart contracts with on-chain personalization + SCALE codec
+- **Foundry** — Build, test (75 tests + fuzz), deploy
 - **OpenZeppelin v5** — Access control, reentrancy guards
+- **XCM Precompile** — Cross-chain messaging to Relay Chain
+- **SCALE Codec** — Substrate-compatible encoding in pure Solidity
 - **Next.js 14** — Frontend with App Router
 - **Wagmi v2 + RainbowKit** — Wallet connection & contract interaction
-- **OpenAI GPT-4o-mini** — Proposal analysis engine
+- **TailwindCSS** — Responsive dark-themed UI with data visualizations
+- **OpenAI GPT-4o-mini** — Deep proposal analysis engine
 - **Polkassembly API** — Enriched governance data (Klara data layer)
+
+## Frontend Screenshots
+
+The dashboard features:
+- **Hero section** with XCM cross-chain voting highlight
+- **5 live stat cards** — AI Analyses, Total Votes, AI Votes, XCM Relayed, Identities
+- **XCM Banner** — visual flow diagram (Hub EVM → XCM V4 → Relay Chain) with live status
+- **Proposal cards** — risk meter, recommendation badge, alignment ring
+- **Deep analysis page** — Treasury donut chart, sentiment bar, voting momentum, risk factors, historical precedent, strengths/weaknesses
+- **Identity page** — 6-axis sliders with radar chart, auto-vote settings, track delegation
 
 ## License
 
