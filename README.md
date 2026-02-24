@@ -53,7 +53,7 @@ A treasury-conservative user and a growth-focused user see the **same proposal**
 ### XCM Cross-Chain Voting
 - **First EVM dApp to relay OpenGov votes cross-chain** via XCM Transact
 - Pure Solidity SCALE codec encodes `convictionVoting.vote()` calls
-- XCM V4 message: `WithdrawAsset → BuyExecution → Transact → RefundSurplus → DepositAsset`
+- XCM V5 message: `WithdrawAsset → BuyExecution → Transact → RefundSurplus → DepositAsset`
 - Sends through the XCM precompile at `0x0A0000` to the Relay Chain
 - Preview functions (`previewEncodedCall`, `previewXcmMessage`) for off-chain verification
 
@@ -82,14 +82,14 @@ A treasury-conservative user and a growth-focused user see the **same proposal**
 - Only updates on-chain when recommendation or risk score changes materially
 - Cooldown prevents excessive re-analysis
 
-## Deployed Contracts (Polkadot Hub Testnet v3)
+## Deployed Contracts (Polkadot Hub Testnet v4)
 
 | Contract | Address |
 |----------|---------|
-| IdentityVault | [`0x585153ef41D1a5f94cCBf403bba5520C71c2c4AD`](https://blockscout-testnet.polkadot.io/address/0x585153ef41D1a5f94cCBf403bba5520C71c2c4AD) |
-| AIOracle | [`0xfC595edB7098336071829fC48aDB269DFEd12104`](https://blockscout-testnet.polkadot.io/address/0xfC595edB7098336071829fC48aDB269DFEd12104) |
-| GovMindCore | [`0xBA56D8Ab673B276009EEdE5A19B2ddBb9839fAd2`](https://blockscout-testnet.polkadot.io/address/0xBA56D8Ab673B276009EEdE5A19B2ddBb9839fAd2) |
-| XCMGovernanceRelay | [`0xA9979547932a2Ce50C9C5d220Eb5e85598e44548`](https://blockscout-testnet.polkadot.io/address/0xA9979547932a2Ce50C9C5d220Eb5e85598e44548) |
+| IdentityVault | [`0x70a5d03293AA0547639cE5E65ad7175Ec1FFfdF8`](https://blockscout-testnet.polkadot.io/address/0x70a5d03293AA0547639cE5E65ad7175Ec1FFfdF8) |
+| AIOracle | [`0xA71F44C0832f80690C11fba2309914DB17Daa46A`](https://blockscout-testnet.polkadot.io/address/0xA71F44C0832f80690C11fba2309914DB17Daa46A) |
+| GovMindCore | [`0x72F4a9352C9b44B0d3c03c098137f861560D3Ce7`](https://blockscout-testnet.polkadot.io/address/0x72F4a9352C9b44B0d3c03c098137f861560D3Ce7) |
+| XCMGovernanceRelay | [`0xCf5E50197C0212bd8171aB40db75E8737416dC2a`](https://blockscout-testnet.polkadot.io/address/0xCf5E50197C0212bd8171aB40db75E8737416dC2a) |
 
 ## Contracts
 
@@ -98,7 +98,7 @@ A treasury-conservative user and a growth-focused user see the **same proposal**
 | `IdentityVault.sol` | Stores governance identities: 6-axis preference weights, risk tolerance, per-track AI delegation config |
 | `AIOracle.sol` | Receives AI analyses from backend, stores on-chain with IPFS references. Supports re-analysis with version tracking |
 | `GovMindCore.sol` | Orchestrates manual + AI votes, on-chain personalization engine (`_computeAlignmentScore`), XCM relay integration |
-| `XCMGovernanceRelay.sol` | SCALE-encodes `convictionVoting.vote()`, constructs XCM V4 message, sends via XCM precompile to Relay Chain |
+| `XCMGovernanceRelay.sol` | SCALE-encodes `convictionVoting.vote()`, constructs XCM V5 message, sends via XCM precompile to Relay Chain |
 | `ScaleCodec.sol` | Pure Solidity SCALE encoding: compact u32/u64/u128, fixed-width u128 LE, Vec<u8> |
 
 ### Personalization Algorithm
@@ -131,7 +131,7 @@ XCMGovernanceRelay.relayVote()
     ├─ SCALE-encode convictionVoting.vote(poll_index, AccountVote::Standard{vote, balance})
     │    └─ Vote byte: bit 7 = aye, bits 0-6 = conviction
     │
-    ├─ Build XCM V4 message:
+    ├─ Build XCM V5 message:
     │    ├─ WithdrawAsset(DOT for fees)
     │    ├─ BuyExecution(Unlimited weight limit)
     │    ├─ Transact(SovereignAccount, encoded_call)
@@ -222,7 +222,7 @@ forge test --match-path test/XCMRelay.t.sol -vvv  # XCM tests only
 The dashboard features:
 - **Hero section** with XCM cross-chain voting highlight
 - **5 live stat cards** — AI Analyses, Total Votes, AI Votes, XCM Relayed, Identities
-- **XCM Banner** — visual flow diagram (Hub EVM → XCM V4 → Relay Chain) with live status
+- **XCM Banner** — visual flow diagram (Hub EVM → XCM V5 → Relay Chain) with live status
 - **Proposal cards** — risk meter, recommendation badge, alignment ring
 - **Deep analysis page** — Treasury donut chart, sentiment bar, voting momentum, risk factors, historical precedent, strengths/weaknesses
 - **Identity page** — 6-axis sliders with radar chart, auto-vote settings, track delegation

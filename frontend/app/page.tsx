@@ -189,7 +189,7 @@ function XCMBanner() {
           </div>
           <p className="text-sm text-gray-400 max-w-lg">
             Vote on Polkadot Relay Chain referenda directly from Hub EVM.
-            GovMind SCALE-encodes your vote, constructs an XCM V4 message,
+            GovMind SCALE-encodes your vote, constructs an XCM V5 message,
             and relays it cross-chain via the XCM precompile.
           </p>
         </div>
@@ -202,7 +202,7 @@ function XCMBanner() {
           </div>
           <div className="flex flex-col items-center gap-0.5">
             <ArrowRight className="w-4 h-4 text-polkadot-purple" />
-            <span className="text-[9px] text-polkadot-purple font-medium">XCM V4</span>
+            <span className="text-[9px] text-polkadot-purple font-medium">XCM V5</span>
           </div>
           <div className="px-3 py-2 rounded-lg bg-surface-2 border border-white/10 text-center">
             <Globe className="w-4 h-4 text-polkadot-purple mx-auto mb-1" />

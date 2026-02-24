@@ -36,7 +36,7 @@ contract XCMGovernanceRelay is Ownable {
     /// @notice Call index for convictionVoting.vote()
     uint8 constant VOTE_CALL_INDEX = 0;
 
-    // --- XCM Instruction Discriminants (XCM V4) ---
+    // --- XCM Instruction Discriminants (XCM V5) ---
     uint8 constant XCM_WITHDRAW_ASSET = 0;
     uint8 constant XCM_TRANSACT = 6;
     uint8 constant XCM_DEPOSIT_ASSET = 13;
@@ -47,7 +47,7 @@ contract XCMGovernanceRelay is Ownable {
     uint8 constant ORIGIN_SOVEREIGN_ACCOUNT = 1;
 
     // --- XCM Version prefix ---
-    uint8 constant XCM_V4 = 4;
+    uint8 constant XCM_V5 = 5;
 
     // --- Default execution weight for convictionVoting.vote() ---
     /// @dev Conservative estimates; can be adjusted via admin
@@ -219,9 +219,9 @@ contract XCMGovernanceRelay is Ownable {
     //                 XCM MESSAGE CONSTRUCTION
     // ============================================================
 
-    /// @notice Build a complete XCM V4 message for vote relay
+    /// @notice Build a complete XCM V5 message for vote relay
     /// @dev Message structure:
-    ///      VersionedXcm::V4([
+    ///      VersionedXcm::V5([
     ///        WithdrawAsset([ DOT(xcmFeeAmount) ]),
     ///        BuyExecution { fees: DOT(xcmFeeAmount), weight_limit: Unlimited },
     ///        Transact { origin_kind: SovereignAccount, weight, call },
@@ -249,11 +249,11 @@ contract XCMGovernanceRelay is Ownable {
         // Return leftover DOT to origin (Hub sovereign account on relay)
         bytes memory depositAsset = _encodeDepositAsset();
 
-        // Combine into VersionedXcm::V4(Vec<Instruction>)
-        // V4 prefix = 0x04
+        // Combine into VersionedXcm::V5(Vec<Instruction>)
+        // V5 prefix = 0x05
         // Vec length = 5 instructions → compact(5) = 0x14
         return abi.encodePacked(
-            XCM_V4,                  // Version prefix
+            XCM_V5,                  // Version prefix
             ScaleCodec.encodeCompactU32(5), // Vec length (5 instructions)
             withdrawAsset,
             buyExecution,
@@ -336,11 +336,11 @@ contract XCMGovernanceRelay is Ownable {
 
     /// @notice Encode the Relay Chain destination
     /// @dev From a system parachain (Hub), relay chain is:
-    ///      VersionedLocation::V4(Location { parents: 1, interior: Here })
+    ///      VersionedLocation::V5(Location { parents: 1, interior: Here })
     ///      SCALE: version(4) + parents(1) + interior(Here=0)
     function _encodeRelayChainDestination() internal pure returns (bytes memory) {
         return abi.encodePacked(
-            XCM_V4,       // VersionedLocation::V4 prefix
+            XCM_V5,       // VersionedLocation::V5 prefix
             uint8(0x01),  // parents: 1 (go up to relay chain)
             uint8(0x00)   // interior: Here (no further junctions)
         );

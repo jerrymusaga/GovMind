@@ -32,7 +32,7 @@
 
 1. User navigates to GovMind's dashboard at `localhost:3000`.
 2. They see the **hero section** — "Your AI Governance Co-Pilot for OpenGov" — with four feature pills: AI Analysis, Personal Identity, XCM Cross-Chain, and On-Chain Proof.
-3. Below, the **XCM Banner** shows a visual flow: Hub EVM → XCM V4 → Relay Chain, with a "LIVE" indicator if XCM relay is active.
+3. Below, the **XCM Banner** shows a visual flow: Hub EVM → XCM V5 → Relay Chain, with a "LIVE" indicator if XCM relay is active.
 4. The **stats bar** displays 5 live on-chain metrics: AI Analyses published, Total Votes cast, AI Votes executed, XCM Relayed votes, and Identities created.
 5. The user sees a **"Connect Wallet"** button prominently in the hero.
 6. They connect their wallet via RainbowKit (MetaMask, WalletConnect, etc.).
@@ -159,7 +159,7 @@
 ### Row 5: XCM Cross-Chain Relay
 
 16. An **XCM section** explains: *"Votes cast through GovMind are relayed to Polkadot Relay Chain via XCM Transact."*
-17. Shows the flow: Hub EVM → XCM → Relay Chain, with "SCALE Codec + XCM V4" badge.
+17. Shows the flow: Hub EVM → XCM → Relay Chain, with "SCALE Codec + XCM V5" badge.
 
 ---
 
@@ -225,7 +225,7 @@
 9. **If XCM relay is enabled:**
    - `xcmRelay.relayVote(voter, 1836, true, 3, 50e18)` is called
    - The contract SCALE-encodes: pallet 20, call 0, compact poll index 1836, vote byte `0x83` (aye + conviction 3), u128 LE balance
-   - Builds XCM V4 message with 5 instructions
+   - Builds XCM V5 message with 5 instructions
    - Sends via `XCM_PRECOMPILE.send()` to Relay Chain destination (parents: 1, interior: Here)
    - `VoteRelayed` event emitted with full XCM message bytes
    - `totalRelayedVotes` increments
@@ -378,7 +378,7 @@ This is the flagship demo scenario for GovMind's personalization.
 
 4. **XCM Message** (`_buildXcmMessage`):
    ```
-   0x04                              // VersionedXcm::V4
+   0x05                              // VersionedXcm::V5
    0x14                              // Vec length = 5 (compact)
    [WithdrawAsset: 0.1 DOT]          // Pay for execution
    [BuyExecution: Unlimited]          // No weight limit
@@ -389,7 +389,7 @@ This is the flagship demo scenario for GovMind's personalization.
 
 5. **Destination** (`_encodeRelayChainDestination`):
    ```
-   0x04 0x01 0x00   // V4, parents=1 (up to relay), interior=Here
+   0x05 0x01 0x00   // V5, parents=1 (up to relay), interior=Here
    ```
 
 6. **Send**: `XCM_PRECOMPILE.send(destination, message)` at address `0x0A0000`.
@@ -492,7 +492,7 @@ This is the flagship demo scenario for GovMind's personalization.
               ┌──────▼──────┐
               │  XCM Relay  │
               │  to Relay   │──── SCALE encode vote
-              │   Chain     │     Build XCM V4 message
+              │   Chain     │     Build XCM V5 message
               └──────┬──────┘     Send via precompile
                      │
               ┌──────▼──────┐

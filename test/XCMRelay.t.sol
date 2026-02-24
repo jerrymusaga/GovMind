@@ -179,8 +179,8 @@ contract XCMRelayTest is Test {
 
     function test_RelayChainDestination() public view {
         bytes memory dest = relay.previewDestination();
-        // VersionedLocation::V4(Location { parents: 1, interior: Here })
-        assertEq(uint8(dest[0]), 0x04, "V4 version prefix");
+        // VersionedLocation::V5(Location { parents: 1, interior: Here })
+        assertEq(uint8(dest[0]), 0x05, "V5 version prefix");
         assertEq(uint8(dest[1]), 0x01, "parents: 1 (relay chain)");
         assertEq(uint8(dest[2]), 0x00, "interior: Here");
         assertEq(dest.length, 3);
@@ -189,8 +189,8 @@ contract XCMRelayTest is Test {
     function test_XcmMessageStructure() public view {
         bytes memory msg_ = relay.previewXcmMessage(1836, true, 1, 100_000_000_000);
 
-        // First byte: V4 prefix
-        assertEq(uint8(msg_[0]), 0x04, "XCM V4 prefix");
+        // First byte: V5 prefix
+        assertEq(uint8(msg_[0]), 0x05, "XCM V5 prefix");
         // Second byte: compact(5) = 5 instructions = 0x14
         assertEq(uint8(msg_[1]), 0x14, "5 instructions compact");
         // Third byte: WithdrawAsset instruction discriminant
@@ -393,7 +393,7 @@ contract XCMRelayTest is Test {
         bytes memory msg_ = relay.previewXcmMessage(refIndex, aye, 1, 10_000_000_000);
         // XCM message should always be substantial
         assertTrue(msg_.length > 30, "XCM message should be at least 30 bytes");
-        // First byte is always V4 prefix
-        assertEq(uint8(msg_[0]), 0x04, "V4 prefix");
+        // First byte is always V5 prefix
+        assertEq(uint8(msg_[0]), 0x05, "V5 prefix");
     }
 }

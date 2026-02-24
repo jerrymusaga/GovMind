@@ -869,7 +869,7 @@ function XCMVerificationPanel({ referendumIndex }: { referendumIndex: number }) 
             <div className="flex items-center justify-between mb-2">
               <p className="text-xs font-semibold text-white flex items-center gap-1.5">
                 <Globe className="w-3.5 h-3.5 text-polkadot-purple" />
-                Full XCM V4 Message
+                Full XCM V5 Message
               </p>
               {xcmHex && (
                 <button
@@ -897,7 +897,7 @@ function XCMVerificationPanel({ referendumIndex }: { referendumIndex: number }) 
           {xcmHex && (
             <div className="p-4 rounded-xl bg-surface-2 border border-white/5">
               <p className="text-[10px] text-gray-500 uppercase tracking-wider font-semibold mb-3">
-                XCM V4 Instructions (5)
+                XCM V5 Instructions (5)
               </p>
               <div className="space-y-2">
                 {[
@@ -932,11 +932,11 @@ function XCMVerificationPanel({ referendumIndex }: { referendumIndex: number }) 
                   Destination
                 </p>
                 <p className="text-xs text-white">
-                  Relay Chain — <span className="text-gray-400">VersionedLocation::V4(parents: 1, interior: Here)</span>
+                  Relay Chain — <span className="text-gray-400">VersionedLocation::V5(parents: 1, interior: Here)</span>
                 </p>
               </div>
               <span className="font-mono text-[11px] text-polkadot-purple bg-polkadot-purple/10 px-2 py-1 rounded">
-                0x040100
+                0x050100
               </span>
             </div>
           </div>
@@ -1515,7 +1515,7 @@ export default function ProposalDetailPage() {
                   </div>
                   <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-surface-2 text-[11px] text-gray-400">
                     <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                    SCALE Codec + XCM V4
+                    SCALE Codec + XCM V5
                   </div>
                 </div>
               </div>
