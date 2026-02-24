@@ -17,6 +17,7 @@ export const ADDRESSES = {
   identityVault: "0x9847Be9B20f23b2cb12C2D6C49B58772096E45eF" as `0x${string}`,
   aiOracle: "0xC762A770E8A50887232497032be4CD19EC2C3478" as `0x${string}`,
   govMindCore: "0x36B98748d41AAB1E50ca0F29E6dC9c4372C74C6e" as `0x${string}`,
+  xcmRelay: "0x0000000000000000000000000000000000000000" as `0x${string}`, // Updated after deployment
 };
 
 export const IDENTITY_VAULT_ABI = [
@@ -339,6 +340,60 @@ export const CATEGORY_NAMES: Record<number, string> = {
   8: "Bounty",
   9: "Other",
 };
+
+export const XCM_RELAY_ABI = [
+  {
+    name: "relayVote",
+    type: "function",
+    stateMutability: "nonpayable",
+    inputs: [
+      { name: "_voter", type: "address" },
+      { name: "_referendumIndex", type: "uint32" },
+      { name: "_aye", type: "bool" },
+      { name: "_conviction", type: "uint8" },
+      { name: "_amount", type: "uint128" },
+    ],
+    outputs: [],
+  },
+  {
+    name: "previewEncodedCall",
+    type: "function",
+    stateMutability: "pure",
+    inputs: [
+      { name: "_referendumIndex", type: "uint32" },
+      { name: "_aye", type: "bool" },
+      { name: "_conviction", type: "uint8" },
+      { name: "_amount", type: "uint128" },
+    ],
+    outputs: [{ name: "encodedCall", type: "bytes" }],
+  },
+  {
+    name: "previewXcmMessage",
+    type: "function",
+    stateMutability: "view",
+    inputs: [
+      { name: "_referendumIndex", type: "uint32" },
+      { name: "_aye", type: "bool" },
+      { name: "_conviction", type: "uint8" },
+      { name: "_amount", type: "uint128" },
+    ],
+    outputs: [{ name: "xcmMessage", type: "bytes" }],
+  },
+  {
+    name: "totalRelayedVotes",
+    type: "function",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ name: "", type: "uint256" }],
+  },
+  {
+    name: "relayEnabled",
+    type: "function",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ name: "", type: "bool" }],
+  },
+] as const;
 
 export const PREFERENCE_AXES = [
   { id: 0, name: "Treasury Conservative", description: "Minimize treasury spending", color: "#F59E0B", icon: "Shield" },

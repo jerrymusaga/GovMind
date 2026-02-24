@@ -14,6 +14,7 @@ import {
   AI_ORACLE_ABI,
   GOVMIND_CORE_ABI,
   IDENTITY_VAULT_ABI,
+  XCM_RELAY_ABI,
   TRACK_NAMES,
   CATEGORY_NAMES,
 } from "@/lib/contracts";
@@ -37,6 +38,8 @@ import {
   History,
   Activity,
   Scale,
+  Globe,
+  Link2,
 } from "lucide-react";
 import Link from "next/link";
 import clsx from "clsx";
@@ -1172,6 +1175,45 @@ export default function ProposalDetailPage() {
                 iconColor="text-polkadot-purple"
               />
               <GovMindStatsInline referendumIndex={referendumIndex} />
+            </div>
+          </div>
+
+          {/* ── Row 5: XCM Cross-Chain Relay ── */}
+          <div className="glass-card p-6 border border-polkadot-purple/20 bg-gradient-to-r from-polkadot-purple/5 to-polkadot-pink/5">
+            <div className="flex items-start gap-4">
+              <div className="w-12 h-12 rounded-xl bg-polkadot-purple/15 flex items-center justify-center flex-shrink-0">
+                <Globe className="w-6 h-6 text-polkadot-purple" />
+              </div>
+              <div className="flex-1">
+                <h3 className="text-sm font-semibold text-white flex items-center gap-2 mb-1">
+                  XCM Cross-Chain Vote Relay
+                  <span className="px-2 py-0.5 text-[10px] font-bold uppercase bg-polkadot-pink/15 text-polkadot-pink rounded">
+                    Polkadot Native
+                  </span>
+                </h3>
+                <p className="text-xs text-gray-400 mb-3">
+                  Votes cast through GovMind are relayed to Polkadot Relay Chain
+                  via XCM Transact. The contract SCALE-encodes{" "}
+                  <code className="text-polkadot-purple">
+                    convictionVoting.vote()
+                  </code>{" "}
+                  and sends it cross-chain through the XCM precompile.
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-surface-2 text-[11px]">
+                    <Link2 className="w-3 h-3 text-polkadot-pink" />
+                    <span className="text-gray-400">Hub EVM</span>
+                    <span className="text-gray-600 mx-0.5">&rarr;</span>
+                    <span className="text-gray-400">XCM</span>
+                    <span className="text-gray-600 mx-0.5">&rarr;</span>
+                    <span className="text-gray-400">Relay Chain</span>
+                  </div>
+                  <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-surface-2 text-[11px] text-gray-400">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                    SCALE Codec + XCM V4
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
 

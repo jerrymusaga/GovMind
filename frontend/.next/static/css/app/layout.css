@@ -699,6 +699,10 @@ video {
   margin-left: auto;
   margin-right: auto;
 }
+.mx-0\.5 {
+  margin-left: 0.125rem;
+  margin-right: 0.125rem;
+}
 .-mt-1 {
   margin-top: -0.25rem;
 }
@@ -1218,6 +1222,9 @@ video {
 .bg-white\/5 {
   background-color: rgb(255 255 255 / 0.05);
 }
+.bg-polkadot-purple\/15 {
+  background-color: rgb(109 58 238 / 0.15);
+}
 .bg-gradient-to-br {
   background-image: linear-gradient(to bottom right, var(--tw-gradient-stops));
 }
@@ -1259,6 +1266,11 @@ video {
   --tw-gradient-to: rgb(239 68 68 / 0) var(--tw-gradient-to-position);
   --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to);
 }
+.from-polkadot-purple\/5 {
+  --tw-gradient-from: rgb(109 58 238 / 0.05) var(--tw-gradient-from-position);
+  --tw-gradient-to: rgb(109 58 238 / 0) var(--tw-gradient-to-position);
+  --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to);
+}
 .via-amber-500\/20 {
   --tw-gradient-to: rgb(245 158 11 / 0)  var(--tw-gradient-to-position);
   --tw-gradient-stops: var(--tw-gradient-from), rgb(245 158 11 / 0.2) var(--tw-gradient-via-position), var(--tw-gradient-to);
@@ -1277,6 +1289,9 @@ video {
 }
 .to-transparent {
   --tw-gradient-to: transparent var(--tw-gradient-to-position);
+}
+.to-polkadot-pink\/5 {
+  --tw-gradient-to: rgb(230 0 122 / 0.05) var(--tw-gradient-to-position);
 }
 .fill-gray-500 {
   fill: #6b7280;
@@ -1356,6 +1371,10 @@ video {
 .py-8 {
   padding-top: 2rem;
   padding-bottom: 2rem;
+}
+.px-2\.5 {
+  padding-left: 0.625rem;
+  padding-right: 0.625rem;
 }
 .pl-2 {
   padding-left: 0.5rem;
