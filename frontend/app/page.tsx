@@ -6,6 +6,7 @@ import {
   ADDRESSES,
   AI_ORACLE_ABI,
   IDENTITY_VAULT_ABI,
+  XCM_RELAY_ABI,
 } from "@/lib/contracts";
 import { StatsHero } from "@/components/StatsHero";
 import { ProposalCard } from "@/components/ProposalCard";
@@ -16,6 +17,8 @@ import {
   Fingerprint,
   ShieldCheck,
   Zap,
+  Globe,
+  Layers,
 } from "lucide-react";
 import Link from "next/link";
 
@@ -37,7 +40,7 @@ function HeroSection() {
         <div className="inline-flex items-center gap-2 px-4 py-1.5 mb-6 rounded-full bg-polkadot-pink/10 border border-polkadot-pink/20">
           <Sparkles className="w-3.5 h-3.5 text-polkadot-pink" />
           <span className="text-xs font-medium text-polkadot-pink">
-            Powered by AI on Polkadot Hub
+            AI + XCM Cross-Chain Voting on Polkadot Hub
           </span>
         </div>
 
@@ -49,9 +52,9 @@ function HeroSection() {
         </h1>
 
         <p className="text-gray-400 text-lg mb-8 max-w-xl mx-auto leading-relaxed">
-          Every proposal analyzed. Every vote personalized.
-          GovMind learns your governance philosophy and gives you
-          recommendations that match <em>your</em> values.
+          AI-powered analysis. Personalized recommendations. Cross-chain
+          execution via XCM. GovMind analyzes proposals, matches them to{" "}
+          <em>your</em> values, and relays votes to Polkadot Relay Chain.
         </p>
 
         {!isConnected ? (
@@ -76,7 +79,7 @@ function HeroSection() {
       </div>
 
       {/* Feature pills */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-12 max-w-2xl mx-auto">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mt-12 max-w-3xl mx-auto">
         {[
           {
             icon: Brain,
@@ -87,6 +90,11 @@ function HeroSection() {
             icon: Fingerprint,
             title: "Personal Identity",
             desc: "6-axis governance preference profile",
+          },
+          {
+            icon: Globe,
+            title: "XCM Cross-Chain",
+            desc: "Vote on Relay Chain directly from Hub EVM",
           },
           {
             icon: ShieldCheck,
@@ -149,6 +157,69 @@ function IdentityBanner() {
   );
 }
 
+function XCMBanner() {
+  const { data: relayEnabled } = useReadContract({
+    address: ADDRESSES.xcmRelay,
+    abi: XCM_RELAY_ABI,
+    functionName: "relayEnabled",
+  });
+
+  const { data: totalRelayed } = useReadContract({
+    address: ADDRESSES.xcmRelay,
+    abi: XCM_RELAY_ABI,
+    functionName: "totalRelayedVotes",
+  });
+
+  return (
+    <div className="my-8 p-6 rounded-2xl bg-gradient-to-r from-polkadot-purple/10 via-surface-1 to-polkadot-pink/10 border border-polkadot-purple/20 relative overflow-hidden">
+      <div className="absolute top-0 right-0 w-48 h-48 bg-polkadot-purple/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2" />
+      <div className="relative z-10 flex flex-col lg:flex-row items-start lg:items-center gap-6">
+        <div className="flex-1">
+          <div className="flex items-center gap-2 mb-2">
+            <Globe className="w-5 h-5 text-polkadot-purple" />
+            <h3 className="text-lg font-bold text-white">
+              XCM Cross-Chain Voting
+            </h3>
+            {relayEnabled && (
+              <span className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-[10px] text-emerald-400 font-medium">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 live-dot" />
+                LIVE
+              </span>
+            )}
+          </div>
+          <p className="text-sm text-gray-400 max-w-lg">
+            Vote on Polkadot Relay Chain referenda directly from Hub EVM.
+            GovMind SCALE-encodes your vote, constructs an XCM V4 message,
+            and relays it cross-chain via the XCM precompile.
+          </p>
+        </div>
+
+        {/* Flow diagram */}
+        <div className="flex items-center gap-2 text-xs shrink-0">
+          <div className="px-3 py-2 rounded-lg bg-surface-2 border border-white/10 text-center">
+            <Layers className="w-4 h-4 text-polkadot-pink mx-auto mb-1" />
+            <span className="text-gray-300 font-medium">Hub EVM</span>
+          </div>
+          <div className="flex flex-col items-center gap-0.5">
+            <ArrowRight className="w-4 h-4 text-polkadot-purple" />
+            <span className="text-[9px] text-polkadot-purple font-medium">XCM V4</span>
+          </div>
+          <div className="px-3 py-2 rounded-lg bg-surface-2 border border-white/10 text-center">
+            <Globe className="w-4 h-4 text-polkadot-purple mx-auto mb-1" />
+            <span className="text-gray-300 font-medium">Relay Chain</span>
+          </div>
+          {totalRelayed !== undefined && Number(totalRelayed) > 0 && (
+            <div className="ml-3 px-3 py-2 rounded-lg bg-polkadot-purple/10 border border-polkadot-purple/20 text-center">
+              <p className="text-lg font-bold text-white">{totalRelayed.toString()}</p>
+              <span className="text-gray-400">relayed</span>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function Dashboard() {
   const { data: analysisCount } = useReadContract({
     address: ADDRESSES.aiOracle,
@@ -171,13 +242,14 @@ export default function Dashboard() {
   const onChainIds = analyzedIds
     ? Array.from(analyzedIds).map(Number)
     : [];
-  const allIds = [...new Set([...onChainIds, ...KNOWN_REFERENDA.map((r) => r.id)])];
+  const allIds = Array.from(new Set([...onChainIds, ...KNOWN_REFERENDA.map((r) => r.id)]));
   const titleMap = Object.fromEntries(KNOWN_REFERENDA.map((r) => [r.id, r.title]));
 
   return (
     <div>
       <HeroSection />
       <StatsHero />
+      <XCMBanner />
       <IdentityBanner />
 
       {/* Proposals Grid */}

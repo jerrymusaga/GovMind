@@ -1,8 +1,8 @@
 "use client";
 
 import { useReadContract } from "wagmi";
-import { ADDRESSES, AI_ORACLE_ABI, GOVMIND_CORE_ABI, IDENTITY_VAULT_ABI } from "@/lib/contracts";
-import { Brain, Vote, Users, Activity } from "lucide-react";
+import { ADDRESSES, AI_ORACLE_ABI, GOVMIND_CORE_ABI, IDENTITY_VAULT_ABI, XCM_RELAY_ABI } from "@/lib/contracts";
+import { Brain, Vote, Users, Activity, Globe } from "lucide-react";
 
 function StatCard({
   icon: Icon,
@@ -60,8 +60,14 @@ export function StatsHero() {
     functionName: "totalIdentities",
   });
 
+  const { data: totalRelayed } = useReadContract({
+    address: ADDRESSES.xcmRelay,
+    abi: XCM_RELAY_ABI,
+    functionName: "totalRelayedVotes",
+  });
+
   return (
-    <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+    <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
       <StatCard
         icon={Brain}
         label="AI Analyses"
@@ -79,6 +85,12 @@ export function StatsHero() {
         label="AI Votes"
         value={totalAIVotes?.toString() || "0"}
         gradient="bg-gradient-to-br from-emerald-500/10 to-transparent"
+      />
+      <StatCard
+        icon={Globe}
+        label="XCM Relayed"
+        value={totalRelayed?.toString() || "0"}
+        gradient="bg-gradient-to-br from-indigo-500/10 to-transparent"
       />
       <StatCard
         icon={Users}
