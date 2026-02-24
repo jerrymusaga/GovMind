@@ -1,6 +1,12 @@
 import OpenAI from "openai";
 
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+let _openai;
+function getOpenAI() {
+  if (!_openai) {
+    _openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+  }
+  return _openai;
+}
 
 const POLKADOT_TREASURY_DOT = 38_000_000;
 
@@ -219,7 +225,7 @@ export async function analyzeProposal(proposal, historicalData = []) {
   }
 
   try {
-    const response = await openai.chat.completions.create({
+    const response = await getOpenAI().chat.completions.create({
       model: "gpt-4o-mini",
       temperature: 0.3,
       max_tokens: 2000,
@@ -236,7 +242,7 @@ export async function analyzeProposal(proposal, historicalData = []) {
     console.warn("  AI analysis failed, retrying with lower temp:", err.message);
 
     try {
-      const response = await openai.chat.completions.create({
+      const response = await getOpenAI().chat.completions.create({
         model: "gpt-4o-mini",
         temperature: 0.1,
         max_tokens: 2000,
