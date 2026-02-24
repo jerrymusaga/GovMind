@@ -40,6 +40,12 @@ import {
   Scale,
   Globe,
   Link2,
+  ChevronDown,
+  ChevronUp,
+  Code2,
+  FileCode,
+  Copy,
+  Check,
 } from "lucide-react";
 import Link from "next/link";
 import clsx from "clsx";
@@ -641,6 +647,303 @@ function SectionHeader({
   );
 }
 
+// ─── XCM Verification Panel ───
+
+function XCMVerificationPanel({ referendumIndex }: { referendumIndex: number }) {
+  const [expanded, setExpanded] = useState(false);
+  const [copiedCall, setCopiedCall] = useState(false);
+  const [copiedXcm, setCopiedXcm] = useState(false);
+
+  // Sample vote params for preview (Aye, conviction 1, 10 DOT in plancks)
+  const sampleAye = true;
+  const sampleConviction = 1;
+  const sampleAmount = BigInt("100000000000"); // 10 DOT = 10 * 10^10 plancks
+
+  const { data: encodedCall } = useReadContract({
+    address: ADDRESSES.xcmRelay,
+    abi: XCM_RELAY_ABI,
+    functionName: "previewEncodedCall",
+    args: [referendumIndex, sampleAye, sampleConviction, sampleAmount],
+    query: { enabled: expanded },
+  });
+
+  const { data: xcmMessage } = useReadContract({
+    address: ADDRESSES.xcmRelay,
+    abi: XCM_RELAY_ABI,
+    functionName: "previewXcmMessage",
+    args: [referendumIndex, sampleAye, sampleConviction, sampleAmount],
+    query: { enabled: expanded },
+  });
+
+  const callHex = encodedCall ? encodedCall as string : null;
+  const xcmHex = xcmMessage ? xcmMessage as string : null;
+
+  // Decode the SCALE-encoded call for human-readable display
+  function decodeCall(hex: string) {
+    // Remove 0x prefix
+    const bytes = hex.slice(2);
+    if (bytes.length < 4) return null;
+
+    const palletIndex = parseInt(bytes.slice(0, 2), 16);
+    const callIndex = parseInt(bytes.slice(2, 4), 16);
+
+    // Poll index is compact-encoded starting at byte 2
+    const firstByte = parseInt(bytes.slice(4, 6), 16);
+    const mode = firstByte & 0x03;
+    let pollIndex = 0;
+    let offset = 4; // hex char offset after pallet+call
+
+    if (mode === 0) {
+      pollIndex = firstByte >> 2;
+      offset += 2;
+    } else if (mode === 1) {
+      const val = parseInt(bytes.slice(4, 6), 16) | (parseInt(bytes.slice(6, 8), 16) << 8);
+      pollIndex = val >> 2;
+      offset += 4;
+    } else if (mode === 2) {
+      const b0 = parseInt(bytes.slice(4, 6), 16);
+      const b1 = parseInt(bytes.slice(6, 8), 16);
+      const b2 = parseInt(bytes.slice(8, 10), 16);
+      const b3 = parseInt(bytes.slice(10, 12), 16);
+      const val = b0 | (b1 << 8) | (b2 << 16) | (b3 << 24);
+      pollIndex = val >>> 2;
+      offset += 8;
+    }
+
+    // AccountVote::Standard variant (0x00)
+    const variantByte = parseInt(bytes.slice(offset, offset + 2), 16);
+    offset += 2;
+
+    // Vote byte
+    const voteByte = parseInt(bytes.slice(offset, offset + 2), 16);
+    offset += 2;
+    const isAye = (voteByte & 0x80) !== 0;
+    const conviction = voteByte & 0x7f;
+
+    // Balance: 16 bytes LE
+    const balanceHex = bytes.slice(offset, offset + 32);
+    let balance = BigInt(0);
+    for (let i = 0; i < 16; i++) {
+      const b = BigInt(parseInt(balanceHex.slice(i * 2, i * 2 + 2), 16));
+      balance += b << BigInt(i * 8);
+    }
+
+    const dotAmount = Number(balance) / 1e10;
+
+    return {
+      palletIndex,
+      callIndex,
+      pollIndex,
+      variantByte,
+      isAye,
+      conviction,
+      balance,
+      dotAmount,
+    };
+  }
+
+  const decoded = callHex ? decodeCall(callHex) : null;
+
+  const copyToClipboard = (text: string, setter: (v: boolean) => void) => {
+    navigator.clipboard.writeText(text);
+    setter(true);
+    setTimeout(() => setter(false), 2000);
+  };
+
+  return (
+    <div className="glass-card border border-polkadot-purple/20 overflow-hidden">
+      <button
+        onClick={() => setExpanded(!expanded)}
+        className="w-full p-5 flex items-center justify-between hover:bg-white/[0.02] transition-colors"
+      >
+        <div className="flex items-center gap-3">
+          <div className="w-9 h-9 rounded-lg bg-polkadot-purple/15 flex items-center justify-center">
+            <Code2 className="w-4.5 h-4.5 text-polkadot-purple" />
+          </div>
+          <div className="text-left">
+            <p className="text-sm font-semibold text-white">Verify XCM Encoding</p>
+            <p className="text-[11px] text-gray-500">
+              Live on-chain SCALE encoding proof — call the contract and inspect the bytes
+            </p>
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="px-2 py-0.5 text-[10px] font-bold uppercase bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 rounded">
+            On-Chain
+          </span>
+          {expanded ? (
+            <ChevronUp className="w-4 h-4 text-gray-500" />
+          ) : (
+            <ChevronDown className="w-4 h-4 text-gray-500" />
+          )}
+        </div>
+      </button>
+
+      {expanded && (
+        <div className="px-5 pb-5 space-y-4 border-t border-white/5 pt-4">
+          {/* Sample params */}
+          <div className="p-3 rounded-xl bg-surface-2 border border-white/5">
+            <p className="text-[10px] text-gray-500 uppercase tracking-wider mb-2 font-semibold">
+              Preview Parameters
+            </p>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <div>
+                <p className="text-[10px] text-gray-500">Referendum</p>
+                <p className="text-sm font-bold text-white">#{referendumIndex}</p>
+              </div>
+              <div>
+                <p className="text-[10px] text-gray-500">Vote</p>
+                <p className="text-sm font-bold text-emerald-400">Aye</p>
+              </div>
+              <div>
+                <p className="text-[10px] text-gray-500">Conviction</p>
+                <p className="text-sm font-bold text-white">1x</p>
+              </div>
+              <div>
+                <p className="text-[10px] text-gray-500">Amount</p>
+                <p className="text-sm font-bold text-white">10 DOT</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Encoded Call */}
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-xs font-semibold text-white flex items-center gap-1.5">
+                <FileCode className="w-3.5 h-3.5 text-polkadot-pink" />
+                Encoded Call (SCALE)
+              </p>
+              {callHex && (
+                <button
+                  onClick={() => copyToClipboard(callHex, setCopiedCall)}
+                  className="flex items-center gap-1 text-[10px] text-gray-500 hover:text-white transition-colors"
+                >
+                  {copiedCall ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
+                  {copiedCall ? "Copied" : "Copy"}
+                </button>
+              )}
+            </div>
+            {callHex ? (
+              <div className="p-3 rounded-lg bg-[#0d0d1a] border border-white/5 font-mono text-[11px] text-polkadot-pink break-all leading-relaxed">
+                {callHex}
+              </div>
+            ) : (
+              <div className="p-3 rounded-lg bg-surface-2 flex items-center justify-center gap-2">
+                <Loader2 className="w-3.5 h-3.5 text-gray-500 animate-spin" />
+                <span className="text-xs text-gray-500">Fetching from contract...</span>
+              </div>
+            )}
+          </div>
+
+          {/* Decoded breakdown */}
+          {decoded && (
+            <div className="p-4 rounded-xl bg-surface-2 border border-white/5 space-y-2">
+              <p className="text-[10px] text-gray-500 uppercase tracking-wider font-semibold mb-3">
+                Decoded Fields
+              </p>
+              <div className="space-y-1.5">
+                {[
+                  { label: "Pallet", value: `convictionVoting (${decoded.palletIndex})`, hex: `0x${decoded.palletIndex.toString(16).padStart(2, "0")}` },
+                  { label: "Call", value: `vote (${decoded.callIndex})`, hex: `0x${decoded.callIndex.toString(16).padStart(2, "0")}` },
+                  { label: "Poll Index", value: `#${decoded.pollIndex}`, hex: "compact" },
+                  { label: "AccountVote", value: `Standard (${decoded.variantByte})`, hex: `0x${decoded.variantByte.toString(16).padStart(2, "0")}` },
+                  { label: "Vote Byte", value: `${decoded.isAye ? "Aye" : "Nay"}, Conviction ${decoded.conviction}x`, hex: `0x${((decoded.isAye ? 0x80 : 0) | decoded.conviction).toString(16).padStart(2, "0")}` },
+                  { label: "Balance", value: `${decoded.dotAmount} DOT`, hex: "u128 LE" },
+                ].map((row) => (
+                  <div key={row.label} className="flex items-center justify-between py-1.5 border-b border-white/[0.03] last:border-0">
+                    <div className="flex items-center gap-3">
+                      <span className="text-[11px] text-gray-500 w-24">{row.label}</span>
+                      <span className="text-[11px] text-white font-medium">{row.value}</span>
+                    </div>
+                    <span className="font-mono text-[10px] text-polkadot-purple">{row.hex}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Full XCM Message */}
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-xs font-semibold text-white flex items-center gap-1.5">
+                <Globe className="w-3.5 h-3.5 text-polkadot-purple" />
+                Full XCM V4 Message
+              </p>
+              {xcmHex && (
+                <button
+                  onClick={() => copyToClipboard(xcmHex, setCopiedXcm)}
+                  className="flex items-center gap-1 text-[10px] text-gray-500 hover:text-white transition-colors"
+                >
+                  {copiedXcm ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
+                  {copiedXcm ? "Copied" : "Copy"}
+                </button>
+              )}
+            </div>
+            {xcmHex ? (
+              <div className="p-3 rounded-lg bg-[#0d0d1a] border border-white/5 font-mono text-[11px] text-polkadot-purple break-all leading-relaxed">
+                {xcmHex}
+              </div>
+            ) : (
+              <div className="p-3 rounded-lg bg-surface-2 flex items-center justify-center gap-2">
+                <Loader2 className="w-3.5 h-3.5 text-gray-500 animate-spin" />
+                <span className="text-xs text-gray-500">Fetching from contract...</span>
+              </div>
+            )}
+          </div>
+
+          {/* XCM Instruction breakdown */}
+          {xcmHex && (
+            <div className="p-4 rounded-xl bg-surface-2 border border-white/5">
+              <p className="text-[10px] text-gray-500 uppercase tracking-wider font-semibold mb-3">
+                XCM V4 Instructions (5)
+              </p>
+              <div className="space-y-2">
+                {[
+                  { num: 1, name: "WithdrawAsset", detail: "0.1 DOT from sovereign account", color: "text-amber-400", opcode: "0x00" },
+                  { num: 2, name: "BuyExecution", detail: "Unlimited weight limit", color: "text-blue-400", opcode: "0x13" },
+                  { num: 3, name: "Transact", detail: "SovereignAccount origin, convictionVoting.vote()", color: "text-emerald-400", opcode: "0x06" },
+                  { num: 4, name: "RefundSurplus", detail: "Return unused execution fees", color: "text-gray-400", opcode: "0x14" },
+                  { num: 5, name: "DepositAsset", detail: "All remaining → Here (sovereign)", color: "text-purple-400", opcode: "0x0d" },
+                ].map((instr) => (
+                  <div key={instr.num} className="flex items-start gap-3 py-1.5">
+                    <span className="w-5 h-5 rounded-full bg-white/5 text-[10px] font-bold text-gray-500 flex items-center justify-center flex-shrink-0 mt-0.5">
+                      {instr.num}
+                    </span>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className={clsx("text-[11px] font-semibold", instr.color)}>{instr.name}</span>
+                        <span className="font-mono text-[10px] text-gray-600">{instr.opcode}</span>
+                      </div>
+                      <p className="text-[11px] text-gray-500">{instr.detail}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Destination */}
+          <div className="p-3 rounded-xl bg-surface-2 border border-white/5">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-[10px] text-gray-500 uppercase tracking-wider font-semibold mb-1">
+                  Destination
+                </p>
+                <p className="text-xs text-white">
+                  Relay Chain — <span className="text-gray-400">VersionedLocation::V4(parents: 1, interior: Here)</span>
+                </p>
+              </div>
+              <span className="font-mono text-[11px] text-polkadot-purple bg-polkadot-purple/10 px-2 py-1 rounded">
+                0x040100
+              </span>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Main Page ───
 
 export default function ProposalDetailPage() {
@@ -1216,6 +1519,9 @@ export default function ProposalDetailPage() {
               </div>
             </div>
           </div>
+
+          {/* ── Row 6: Verify XCM Encoding ── */}
+          <XCMVerificationPanel referendumIndex={referendumIndex} />
 
           {/* Loading indicator for deep analysis */}
           {apiLoading && !deep && (

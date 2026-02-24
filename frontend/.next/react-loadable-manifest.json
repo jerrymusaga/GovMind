@@ -962,14 +962,14 @@
   "node_modules/@wagmi/connectors/dist/esm/safe.js -> @safe-global/safe-apps-provider": {
     "id": 97353,
     "files": [
-      "static/chunks/2181.0cfb1a20a5d7df4d.js",
+      "static/chunks/2181.879c7cea39e9112f.js",
       "static/chunks/7353.cf9f9873f045d41c.js"
     ]
   },
   "node_modules/@wagmi/connectors/dist/esm/safe.js -> @safe-global/safe-apps-sdk": {
     "id": 74946,
     "files": [
-      "static/chunks/2181.0cfb1a20a5d7df4d.js",
+      "static/chunks/2181.879c7cea39e9112f.js",
       "static/chunks/4946.7b7e3f774d2c41d7.js"
     ]
   },
