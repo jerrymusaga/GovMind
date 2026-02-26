@@ -191,13 +191,27 @@ contract XCMRelayTest is Test {
 
         // First byte: V5 prefix
         assertEq(uint8(msg_[0]), 0x05, "XCM V5 prefix");
-        // Second byte: compact(5) = 5 instructions = 0x14
-        assertEq(uint8(msg_[1]), 0x14, "5 instructions compact");
+        // Second byte: compact(2) = 2 outer instructions = 0x08
+        assertEq(uint8(msg_[1]), 0x08, "2 outer instructions compact");
         // Third byte: WithdrawAsset instruction discriminant
         assertEq(uint8(msg_[2]), 0x00, "WithdrawAsset discriminant");
 
         // Verify message is non-trivial (has real content)
         assertTrue(msg_.length > 30, "XCM message should have substantial content");
+    }
+
+    function test_XcmMessageContainsInitiateTeleport() public view {
+        bytes memory msg_ = relay.previewXcmMessage(1836, true, 1, 100_000_000_000);
+
+        // Search for InitiateTeleport discriminant (17 = 0x11)
+        bool foundTeleport = false;
+        for (uint256 i = 2; i < msg_.length; i++) {
+            if (uint8(msg_[i]) == 0x11) {
+                foundTeleport = true;
+                break;
+            }
+        }
+        assertTrue(foundTeleport, "XCM message should contain InitiateTeleport instruction");
     }
 
     function test_XcmMessageContainsTransact() public view {
@@ -285,7 +299,7 @@ contract XCMRelayTest is Test {
         // Mock the XCM precompile call since it won't exist in forge test
         vm.mockCall(
             address(0x0A0000),
-            abi.encodeWithSelector(IXcm.send.selector),
+            abi.encodeWithSelector(IXcm.execute.selector),
             ""
         );
 
@@ -296,7 +310,7 @@ contract XCMRelayTest is Test {
     function test_RelayRecordsVote() public {
         vm.mockCall(
             address(0x0A0000),
-            abi.encodeWithSelector(IXcm.send.selector),
+            abi.encodeWithSelector(IXcm.execute.selector),
             ""
         );
 
@@ -315,7 +329,7 @@ contract XCMRelayTest is Test {
     function test_RelayEmitsEvent() public {
         vm.mockCall(
             address(0x0A0000),
-            abi.encodeWithSelector(IXcm.send.selector),
+            abi.encodeWithSelector(IXcm.execute.selector),
             ""
         );
 
@@ -330,7 +344,7 @@ contract XCMRelayTest is Test {
     function test_MultipleRelays() public {
         vm.mockCall(
             address(0x0A0000),
-            abi.encodeWithSelector(IXcm.send.selector),
+            abi.encodeWithSelector(IXcm.execute.selector),
             ""
         );
 

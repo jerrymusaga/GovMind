@@ -86,10 +86,10 @@ A treasury-conservative user and a growth-focused user see the **same proposal**
 
 | Contract | Address |
 |----------|---------|
-| IdentityVault | [`0x70a5d03293AA0547639cE5E65ad7175Ec1FFfdF8`](https://blockscout-testnet.polkadot.io/address/0x70a5d03293AA0547639cE5E65ad7175Ec1FFfdF8) |
-| AIOracle | [`0xA71F44C0832f80690C11fba2309914DB17Daa46A`](https://blockscout-testnet.polkadot.io/address/0xA71F44C0832f80690C11fba2309914DB17Daa46A) |
-| GovMindCore | [`0x72F4a9352C9b44B0d3c03c098137f861560D3Ce7`](https://blockscout-testnet.polkadot.io/address/0x72F4a9352C9b44B0d3c03c098137f861560D3Ce7) |
-| XCMGovernanceRelay | [`0xCf5E50197C0212bd8171aB40db75E8737416dC2a`](https://blockscout-testnet.polkadot.io/address/0xCf5E50197C0212bd8171aB40db75E8737416dC2a) |
+| IdentityVault | [`0x5DAdd67d21330153CaA2fF5dB3a0Ce96786f9eb8`](https://blockscout-testnet.polkadot.io/address/0x5DAdd67d21330153CaA2fF5dB3a0Ce96786f9eb8) |
+| AIOracle | [`0x628812BE85aC3fe49bfC6b3aD3F26d0097a07667`](https://blockscout-testnet.polkadot.io/address/0x628812BE85aC3fe49bfC6b3aD3F26d0097a07667) |
+| GovMindCore | [`0x018aC1f307d6b2FD1426458Df4d32e306660398a`](https://blockscout-testnet.polkadot.io/address/0x018aC1f307d6b2FD1426458Df4d32e306660398a) |
+| XCMGovernanceRelay | [`0x246DE6C6e938f70305B6919C94e4D103c0D7d45f`](https://blockscout-testnet.polkadot.io/address/0x246DE6C6e938f70305B6919C94e4D103c0D7d45f) |
 
 ## Contracts
 
@@ -131,17 +131,22 @@ XCMGovernanceRelay.relayVote()
     ├─ SCALE-encode convictionVoting.vote(poll_index, AccountVote::Standard{vote, balance})
     │    └─ Vote byte: bit 7 = aye, bits 0-6 = conviction
     │
-    ├─ Build XCM V5 message:
-    │    ├─ WithdrawAsset(DOT for fees)
-    │    ├─ BuyExecution(Unlimited weight limit)
-    │    ├─ Transact(SovereignAccount, encoded_call)
-    │    ├─ RefundSurplus
-    │    └─ DepositAsset(All → Here)
+    ├─ Build XCM V5 execute message:
+    │    ┌─ OUTER (executes on Hub):
+    │    │   ├─ WithdrawAsset(DOT, parents:1)
+    │    │   └─ InitiateTeleport → Relay Chain
+    │    │        └─ INNER (executes on Relay):
+    │    │             ├─ BuyExecution(Unlimited)
+    │    │             ├─ Transact(SovereignAccount, encoded_call)
+    │    │             ├─ RefundSurplus
+    │    │             └─ DepositAsset(All → Here)
+    │    │
+    │    └─ V5 Transact uses Option<Weight> for fallback_max_weight
     │
-    └─ XCM_PRECOMPILE.send(relay_chain_destination, xcm_message)
+    └─ XCM_PRECOMPILE.execute(xcm_message, refTime, proofSize)
          │
          ▼
-    Polkadot Relay Chain executes convictionVoting.vote()
+    DOT teleported to Relay Chain → convictionVoting.vote() executed
 ```
 
 ## Polkassembly / Klara Integration

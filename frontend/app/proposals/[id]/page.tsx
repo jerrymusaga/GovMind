@@ -893,19 +893,20 @@ function XCMVerificationPanel({ referendumIndex }: { referendumIndex: number }) 
             )}
           </div>
 
-          {/* XCM Instruction breakdown */}
+          {/* XCM Instruction breakdown - execute() + InitiateTeleport pattern */}
           {xcmHex && (
             <div className="p-4 rounded-xl bg-surface-2 border border-white/5">
               <p className="text-[10px] text-gray-500 uppercase tracking-wider font-semibold mb-3">
-                XCM V5 Instructions (5)
+                XCM V5 execute() Flow — 2 Outer + 4 Inner Instructions
               </p>
-              <div className="space-y-2">
+              {/* Outer instructions (Hub) */}
+              <p className="text-[9px] text-polkadot-pink uppercase tracking-wider font-bold mb-2">
+                Hub (Local Execute)
+              </p>
+              <div className="space-y-2 mb-4">
                 {[
-                  { num: 1, name: "WithdrawAsset", detail: "0.1 DOT from sovereign account", color: "text-amber-400", opcode: "0x00" },
-                  { num: 2, name: "BuyExecution", detail: "Unlimited weight limit", color: "text-blue-400", opcode: "0x13" },
-                  { num: 3, name: "Transact", detail: "SovereignAccount origin, convictionVoting.vote()", color: "text-emerald-400", opcode: "0x06" },
-                  { num: 4, name: "RefundSurplus", detail: "Return unused execution fees", color: "text-gray-400", opcode: "0x14" },
-                  { num: 5, name: "DepositAsset", detail: "All remaining → Here (sovereign)", color: "text-purple-400", opcode: "0x0d" },
+                  { num: 1, name: "WithdrawAsset", detail: "0.1 DOT (parents:1 = relay token on Hub)", color: "text-amber-400", opcode: "0x00" },
+                  { num: 2, name: "InitiateTeleport", detail: "Teleport DOT + inner XCM → Relay Chain", color: "text-polkadot-pink", opcode: "0x11" },
                 ].map((instr) => (
                   <div key={instr.num} className="flex items-start gap-3 py-1.5">
                     <span className="w-5 h-5 rounded-full bg-white/5 text-[10px] font-bold text-gray-500 flex items-center justify-center flex-shrink-0 mt-0.5">
@@ -921,22 +922,60 @@ function XCMVerificationPanel({ referendumIndex }: { referendumIndex: number }) 
                   </div>
                 ))}
               </div>
+              {/* Inner instructions (Relay Chain) */}
+              <p className="text-[9px] text-polkadot-purple uppercase tracking-wider font-bold mb-2">
+                Relay Chain (Remote Execution)
+              </p>
+              <div className="space-y-2">
+                {[
+                  { num: 1, name: "BuyExecution", detail: "Unlimited weight limit, native DOT fees", color: "text-blue-400", opcode: "0x13" },
+                  { num: 2, name: "Transact", detail: "SovereignAccount, convictionVoting.vote()", color: "text-emerald-400", opcode: "0x06" },
+                  { num: 3, name: "RefundSurplus", detail: "Return unused execution fees", color: "text-gray-400", opcode: "0x14" },
+                  { num: 4, name: "DepositAsset", detail: "All remaining → Here (sovereign)", color: "text-purple-400", opcode: "0x0d" },
+                ].map((instr) => (
+                  <div key={instr.num} className="flex items-start gap-3 py-1.5 pl-4 border-l border-polkadot-purple/20">
+                    <span className="w-5 h-5 rounded-full bg-polkadot-purple/10 text-[10px] font-bold text-polkadot-purple flex items-center justify-center flex-shrink-0 mt-0.5">
+                      {instr.num}
+                    </span>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className={clsx("text-[11px] font-semibold", instr.color)}>{instr.name}</span>
+                        <span className="font-mono text-[10px] text-gray-600">{instr.opcode}</span>
+                      </div>
+                      <p className="text-[11px] text-gray-500">{instr.detail}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
           )}
 
-          {/* Destination */}
-          <div className="p-3 rounded-xl bg-surface-2 border border-white/5">
+          {/* Method + Destination */}
+          <div className="p-3 rounded-xl bg-surface-2 border border-white/5 space-y-2">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-[10px] text-gray-500 uppercase tracking-wider font-semibold mb-1">
-                  Destination
+                  Method
                 </p>
                 <p className="text-xs text-white">
-                  Relay Chain — <span className="text-gray-400">VersionedLocation::V5(parents: 1, interior: Here)</span>
+                  XCM Precompile <span className="text-gray-400">execute(message, refTime, proofSize)</span>
+                </p>
+              </div>
+              <span className="font-mono text-[11px] text-polkadot-pink bg-polkadot-pink/10 px-2 py-1 rounded">
+                0x0A0000
+              </span>
+            </div>
+            <div className="flex items-center justify-between pt-2 border-t border-white/5">
+              <div>
+                <p className="text-[10px] text-gray-500 uppercase tracking-wider font-semibold mb-1">
+                  Destination (via InitiateTeleport)
+                </p>
+                <p className="text-xs text-white">
+                  Relay Chain — <span className="text-gray-400">Location(parents: 1, interior: Here)</span>
                 </p>
               </div>
               <span className="font-mono text-[11px] text-polkadot-purple bg-polkadot-purple/10 px-2 py-1 rounded">
-                0x050100
+                0x01 0x00
               </span>
             </div>
           </div>
