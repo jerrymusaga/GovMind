@@ -14,10 +14,10 @@ export const POLKADOT_HUB_TESTNET = {
 } as const;
 
 export const ADDRESSES = {
-  identityVault: "0x5DAdd67d21330153CaA2fF5dB3a0Ce96786f9eb8" as `0x${string}`,
-  aiOracle: "0x628812BE85aC3fe49bfC6b3aD3F26d0097a07667" as `0x${string}`,
-  govMindCore: "0x018aC1f307d6b2FD1426458Df4d32e306660398a" as `0x${string}`,
-  xcmRelay: "0x246DE6C6e938f70305B6919C94e4D103c0D7d45f" as `0x${string}`,
+  identityVault: "0x6ef53Ce1FBDa8B13A2CCAE598a77A5bdC27402F7" as `0x${string}`,
+  aiOracle: "0x8DD746657Cbc7BE0f322F20780c6AD1EEdBD03Af" as `0x${string}`,
+  govMindCore: "0x2F23763C8E4196647E9529dBb13e21a8766b64fb" as `0x${string}`,
+  xcmRelay: "0x5fd260821D7868738FCCc18f3252f10Ceb7EE3d4" as `0x${string}`,
 };
 
 export const IDENTITY_VAULT_ABI = [

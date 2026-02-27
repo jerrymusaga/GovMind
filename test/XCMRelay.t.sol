@@ -203,10 +203,10 @@ contract XCMRelayTest is Test {
     function test_XcmMessageContainsInitiateTeleport() public view {
         bytes memory msg_ = relay.previewXcmMessage(1836, true, 1, 100_000_000_000);
 
-        // Search for InitiateTeleport discriminant (15 = 0x0F in V5)
+        // Search for InitiateTeleport discriminant (17 = 0x11 in V5)
         bool foundTeleport = false;
         for (uint256 i = 2; i < msg_.length; i++) {
-            if (uint8(msg_[i]) == 0x0F) {
+            if (uint8(msg_[i]) == 0x11) {
                 foundTeleport = true;
                 break;
             }
@@ -217,10 +217,10 @@ contract XCMRelayTest is Test {
     function test_XcmMessageContainsTransact() public view {
         bytes memory msg_ = relay.previewXcmMessage(1836, true, 1, 100_000_000_000);
 
-        // Search for Transact discriminant (9 = 0x09 in V5) followed by SovereignAccount origin (1)
+        // Search for Transact discriminant (6 = 0x06 in V5) followed by SovereignAccount origin (1)
         bool foundTransact = false;
         for (uint256 i = 2; i < msg_.length - 1; i++) {
-            if (uint8(msg_[i]) == 0x09 && uint8(msg_[i + 1]) == 0x01) {
+            if (uint8(msg_[i]) == 0x06 && uint8(msg_[i + 1]) == 0x01) {
                 foundTransact = true;
                 break;
             }
@@ -231,10 +231,10 @@ contract XCMRelayTest is Test {
     function test_XcmMessageContainsRefundAndDeposit() public view {
         bytes memory msg_ = relay.previewXcmMessage(1836, true, 1, 100_000_000_000);
 
-        // Search for RefundSurplus (18 = 0x12 in V5) followed by DepositAsset (11 = 0x0B)
+        // Search for RefundSurplus (20 = 0x14 in V5) followed by DepositAsset (13 = 0x0D)
         bool foundRefund = false;
         for (uint256 i = 2; i < msg_.length - 1; i++) {
-            if (uint8(msg_[i]) == 0x12 && uint8(msg_[i + 1]) == 0x0B) {
+            if (uint8(msg_[i]) == 0x14 && uint8(msg_[i + 1]) == 0x0D) {
                 foundRefund = true;
                 break;
             }
@@ -386,9 +386,9 @@ contract XCMRelayTest is Test {
         // we should see exactly 8+8=16 bytes of weight data.
         bytes memory msg_ = relay.previewXcmMessage(1, true, 1, 10_000_000_000);
 
-        // Find Transact: 0x09 followed by 0x01 (SovereignAccount) in V5
+        // Find Transact: 0x06 followed by 0x01 (SovereignAccount) in V5
         for (uint256 i = 2; i < msg_.length - 18; i++) {
-            if (uint8(msg_[i]) == 0x09 && uint8(msg_[i + 1]) == 0x01) {
+            if (uint8(msg_[i]) == 0x06 && uint8(msg_[i + 1]) == 0x01) {
                 // i+2 should be Option::Some = 0x01
                 assertEq(uint8(msg_[i + 2]), 0x01, "Option::Some byte");
                 // i+3..i+10 should be refTime as u64 LE (500_000_000 = 0x1DCD6500)
