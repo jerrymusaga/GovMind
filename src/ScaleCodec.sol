@@ -125,6 +125,16 @@ library ScaleCodec {
         return result;
     }
 
+    /// @notice Encode a uint64 as 8 bytes little-endian (fixed-width)
+    /// @dev Used for Weight struct fields (ref_time, proof_size) which are NOT compact
+    function encodeU64LE(uint64 value) internal pure returns (bytes memory) {
+        bytes memory result = new bytes(8);
+        for (uint8 i = 0; i < 8; i++) {
+            result[i] = bytes1(uint8(value >> (i * 8)));
+        }
+        return result;
+    }
+
     // ============================================================
     //                    VECTOR ENCODING
     // ============================================================

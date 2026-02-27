@@ -322,8 +322,8 @@ contract XCMGovernanceRelay is Ownable {
             XCM_TRANSACT,                                    // Instruction discriminant (6)
             ORIGIN_SOVEREIGN_ACCOUNT,                        // OriginKind (1)
             uint8(0x01),                                     // Option::Some (V5 change)
-            ScaleCodec.encodeCompactU64(transactRefTime),    // fallback_max_weight.refTime
-            ScaleCodec.encodeCompactU64(transactProofSize),  // fallback_max_weight.proofSize
+            ScaleCodec.encodeU64LE(transactRefTime),         // fallback_max_weight.refTime (fixed u64 LE)
+            ScaleCodec.encodeU64LE(transactProofSize),       // fallback_max_weight.proofSize (fixed u64 LE)
             ScaleCodec.encodeVecU8(call)                     // Encoded call as Vec<u8>
         );
     }
