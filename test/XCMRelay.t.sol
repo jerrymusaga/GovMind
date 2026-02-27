@@ -191,8 +191,8 @@ contract XCMRelayTest is Test {
 
         // First byte: V5 prefix
         assertEq(uint8(msg_[0]), 0x05, "XCM V5 prefix");
-        // Second byte: compact(2) = 2 outer instructions = 0x08
-        assertEq(uint8(msg_[1]), 0x08, "2 outer instructions compact");
+        // Second byte: compact(5) = 5 instructions = 0x14
+        assertEq(uint8(msg_[1]), 0x14, "5 instructions compact");
         // Third byte: WithdrawAsset instruction discriminant
         assertEq(uint8(msg_[2]), 0x00, "WithdrawAsset discriminant");
 
@@ -200,18 +200,18 @@ contract XCMRelayTest is Test {
         assertTrue(msg_.length > 30, "XCM message should have substantial content");
     }
 
-    function test_XcmMessageContainsInitiateTeleport() public view {
+    function test_XcmMessageContainsBuyExecution() public view {
         bytes memory msg_ = relay.previewXcmMessage(1836, true, 1, 100_000_000_000);
 
-        // Search for InitiateTeleport discriminant (17 = 0x11 in V5)
-        bool foundTeleport = false;
+        // Search for BuyExecution discriminant (19 = 0x13)
+        bool foundBuy = false;
         for (uint256 i = 2; i < msg_.length; i++) {
-            if (uint8(msg_[i]) == 0x11) {
-                foundTeleport = true;
+            if (uint8(msg_[i]) == 0x13) {
+                foundBuy = true;
                 break;
             }
         }
-        assertTrue(foundTeleport, "XCM message should contain InitiateTeleport instruction");
+        assertTrue(foundBuy, "XCM message should contain BuyExecution instruction");
     }
 
     function test_XcmMessageContainsTransact() public view {
@@ -299,7 +299,7 @@ contract XCMRelayTest is Test {
         // Mock the XCM precompile call since it won't exist in forge test
         vm.mockCall(
             address(0x0A0000),
-            abi.encodeWithSelector(IXcm.execute.selector),
+            abi.encodeWithSelector(IXcm.send.selector),
             ""
         );
 
@@ -310,7 +310,7 @@ contract XCMRelayTest is Test {
     function test_RelayRecordsVote() public {
         vm.mockCall(
             address(0x0A0000),
-            abi.encodeWithSelector(IXcm.execute.selector),
+            abi.encodeWithSelector(IXcm.send.selector),
             ""
         );
 
@@ -329,7 +329,7 @@ contract XCMRelayTest is Test {
     function test_RelayEmitsEvent() public {
         vm.mockCall(
             address(0x0A0000),
-            abi.encodeWithSelector(IXcm.execute.selector),
+            abi.encodeWithSelector(IXcm.send.selector),
             ""
         );
 
@@ -344,7 +344,7 @@ contract XCMRelayTest is Test {
     function test_MultipleRelays() public {
         vm.mockCall(
             address(0x0A0000),
-            abi.encodeWithSelector(IXcm.execute.selector),
+            abi.encodeWithSelector(IXcm.send.selector),
             ""
         );
 
@@ -379,26 +379,28 @@ contract XCMRelayTest is Test {
         assertEq(uint8(result[7]), 0x00);
     }
 
-    function test_TransactWeightIsFixedWidth() public view {
-        // The XCM message should contain the Transact weight as fixed u64 LE (8 bytes each)
-        // NOT compact encoded. With transactRefTime = 500_000_000 and transactProofSize = 20_000,
-        // after Transact discriminant (0x06), OriginKind (0x01), Option::Some (0x01),
-        // we should see exactly 8+8=16 bytes of weight data.
+    function test_TransactWeightIsCompact() public view {
+        // The XCM V5 Transact weight uses compact encoding.
+        // With transactRefTime = 500_000_000 and transactProofSize = 20_000:
+        // compact(500_000_000) = 4-byte mode: (500M << 2) | 2 = 0xEE6B2802, LE: 02 28 6B EE
+        // compact(20_000) = 4-byte mode: (20000 << 2) | 2 = 0x13882, LE: 82 38 01 00
         bytes memory msg_ = relay.previewXcmMessage(1, true, 1, 10_000_000_000);
 
-        // Find Transact: 0x06 followed by 0x01 (SovereignAccount) in V5
-        for (uint256 i = 2; i < msg_.length - 18; i++) {
+        // Find Transact: 0x06 followed by 0x01 (SovereignAccount)
+        for (uint256 i = 2; i < msg_.length - 10; i++) {
             if (uint8(msg_[i]) == 0x06 && uint8(msg_[i + 1]) == 0x01) {
                 // i+2 should be Option::Some = 0x01
                 assertEq(uint8(msg_[i + 2]), 0x01, "Option::Some byte");
-                // i+3..i+10 should be refTime as u64 LE (500_000_000 = 0x1DCD6500)
-                assertEq(uint8(msg_[i + 3]), 0x00, "refTime byte 0");
-                assertEq(uint8(msg_[i + 4]), 0x65, "refTime byte 1");
-                assertEq(uint8(msg_[i + 5]), 0xCD, "refTime byte 2");
-                assertEq(uint8(msg_[i + 6]), 0x1D, "refTime byte 3");
-                // i+11..i+18 should be proofSize as u64 LE (20_000 = 0x4E20)
-                assertEq(uint8(msg_[i + 11]), 0x20, "proofSize byte 0");
-                assertEq(uint8(msg_[i + 12]), 0x4E, "proofSize byte 1");
+                // i+3..i+6: compact refTime (500M) = 02 28 6B EE
+                assertEq(uint8(msg_[i + 3]), 0x02, "compact refTime byte 0");
+                assertEq(uint8(msg_[i + 4]), 0x28, "compact refTime byte 1");
+                assertEq(uint8(msg_[i + 5]), 0x6B, "compact refTime byte 2");
+                assertEq(uint8(msg_[i + 6]), 0xEE, "compact refTime byte 3");
+                // i+7..i+10: compact proofSize (20K) = 82 38 01 00
+                assertEq(uint8(msg_[i + 7]), 0x82, "compact proofSize byte 0");
+                assertEq(uint8(msg_[i + 8]), 0x38, "compact proofSize byte 1");
+                assertEq(uint8(msg_[i + 9]), 0x01, "compact proofSize byte 2");
+                assertEq(uint8(msg_[i + 10]), 0x00, "compact proofSize byte 3");
                 return;
             }
         }
