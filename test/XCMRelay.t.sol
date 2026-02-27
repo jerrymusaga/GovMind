@@ -363,6 +363,48 @@ contract XCMRelayTest is Test {
         assertEq(votes1831.length, 1);
     }
 
+    function test_U64LE_Encoding() public pure {
+        // 500_000_000 = 0x1DCD6500
+        uint64 val = 500_000_000;
+        bytes memory result = ScaleCodec.encodeU64LE(val);
+        assertEq(result.length, 8, "u64 LE must be exactly 8 bytes");
+        // LE: 0x00 0x65 0xCD 0x1D 0x00 0x00 0x00 0x00
+        assertEq(uint8(result[0]), 0x00);
+        assertEq(uint8(result[1]), 0x65);
+        assertEq(uint8(result[2]), 0xCD);
+        assertEq(uint8(result[3]), 0x1D);
+        assertEq(uint8(result[4]), 0x00);
+        assertEq(uint8(result[5]), 0x00);
+        assertEq(uint8(result[6]), 0x00);
+        assertEq(uint8(result[7]), 0x00);
+    }
+
+    function test_TransactWeightIsFixedWidth() public view {
+        // The XCM message should contain the Transact weight as fixed u64 LE (8 bytes each)
+        // NOT compact encoded. With transactRefTime = 500_000_000 and transactProofSize = 20_000,
+        // after Transact discriminant (0x06), OriginKind (0x01), Option::Some (0x01),
+        // we should see exactly 8+8=16 bytes of weight data.
+        bytes memory msg_ = relay.previewXcmMessage(1, true, 1, 10_000_000_000);
+
+        // Find Transact: 0x06 followed by 0x01 (SovereignAccount)
+        for (uint256 i = 2; i < msg_.length - 18; i++) {
+            if (uint8(msg_[i]) == 0x06 && uint8(msg_[i + 1]) == 0x01) {
+                // i+2 should be Option::Some = 0x01
+                assertEq(uint8(msg_[i + 2]), 0x01, "Option::Some byte");
+                // i+3..i+10 should be refTime as u64 LE (500_000_000 = 0x1DCD6500)
+                assertEq(uint8(msg_[i + 3]), 0x00, "refTime byte 0");
+                assertEq(uint8(msg_[i + 4]), 0x65, "refTime byte 1");
+                assertEq(uint8(msg_[i + 5]), 0xCD, "refTime byte 2");
+                assertEq(uint8(msg_[i + 6]), 0x1D, "refTime byte 3");
+                // i+11..i+18 should be proofSize as u64 LE (20_000 = 0x4E20)
+                assertEq(uint8(msg_[i + 11]), 0x20, "proofSize byte 0");
+                assertEq(uint8(msg_[i + 12]), 0x4E, "proofSize byte 1");
+                return;
+            }
+        }
+        revert("Transact instruction not found in XCM message");
+    }
+
     // ================================================================
     //                    FUZZ TESTS
     // ================================================================
