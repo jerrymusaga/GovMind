@@ -39,12 +39,13 @@ contract XCMGovernanceRelay is Ownable {
     uint8 constant VOTE_CALL_INDEX = 0;
 
     // --- XCM Instruction Discriminants (XCM V5) ---
+    // Reference: polkadot-sdk/polkadot/xcm/src/v5/mod.rs Instruction enum
     uint8 constant XCM_WITHDRAW_ASSET = 0;
-    uint8 constant XCM_TRANSACT = 6;
-    uint8 constant XCM_DEPOSIT_ASSET = 13;
-    uint8 constant XCM_INITIATE_TELEPORT = 17;
-    uint8 constant XCM_BUY_EXECUTION = 19;
-    uint8 constant XCM_REFUND_SURPLUS = 20;
+    uint8 constant XCM_TRANSACT = 9;
+    uint8 constant XCM_DEPOSIT_ASSET = 11;
+    uint8 constant XCM_INITIATE_TELEPORT = 15;
+    uint8 constant XCM_BUY_EXECUTION = 17;
+    uint8 constant XCM_REFUND_SURPLUS = 18;
 
     // --- XCM OriginKind enum ---
     uint8 constant ORIGIN_SOVEREIGN_ACCOUNT = 1;
