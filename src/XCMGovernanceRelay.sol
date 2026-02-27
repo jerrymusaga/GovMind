@@ -300,12 +300,13 @@ contract XCMGovernanceRelay is Ownable {
     //                    ASSET ENCODING
     // ============================================================
 
-    /// @notice Encode a native DOT asset on the Relay Chain
-    /// @dev Asset { id: AssetId(Location { parents: 0, interior: Here }),
+    /// @notice Encode a native DOT asset for BuyExecution on relay chain
+    /// @dev Asset { id: AssetId(Location { parents: 1, interior: Here }),
     ///              fun: Fungibility::Fungible(amount) }
+    ///      parents:1 references the relay chain token from Hub's message context
     function _encodeNativeDotAsset(uint128 amount) internal pure returns (bytes memory) {
         return abi.encodePacked(
-            uint8(0x00),                             // AssetId: Location.parents = 0
+            uint8(0x01),                             // AssetId: Location.parents = 1
             uint8(0x00),                             // AssetId: Location.interior = Here
             uint8(0x00),                             // Fungibility::Fungible variant
             ScaleCodec.encodeCompactU128(amount)     // Amount (compact)
@@ -405,9 +406,4 @@ contract XCMGovernanceRelay is Ownable {
         emit FeeUpdated(_amount);
     }
 
-    /// @notice Update local execute weight limits
-    function updateExecuteWeight(uint64 _refTime, uint64 _proofSize) external onlyOwner {
-        executeRefTime = _refTime;
-        executeProofSize = _proofSize;
-    }
 }
