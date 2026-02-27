@@ -382,20 +382,18 @@ contract XCMRelayTest is Test {
     function test_TransactWeightIsCompact() public view {
         // The XCM V5 Transact weight uses compact encoding.
         // With transactRefTime = 500_000_000 and transactProofSize = 20_000:
-        // compact(500_000_000) = 4-byte mode: (500M << 2) | 2 = 0xEE6B2802, LE: 02 28 6B EE
+        // compact(500_000_000) = 4-byte mode: (500M << 2) | 2 = 0x77359402, LE: 02 94 35 77
         // compact(20_000) = 4-byte mode: (20000 << 2) | 2 = 0x13882, LE: 82 38 01 00
         bytes memory msg_ = relay.previewXcmMessage(1, true, 1, 10_000_000_000);
 
-        // Find Transact: 0x06 followed by 0x01 (SovereignAccount)
-        for (uint256 i = 2; i < msg_.length - 10; i++) {
-            if (uint8(msg_[i]) == 0x06 && uint8(msg_[i + 1]) == 0x01) {
-                // i+2 should be Option::Some = 0x01
-                assertEq(uint8(msg_[i + 2]), 0x01, "Option::Some byte");
-                // i+3..i+6: compact refTime (500M) = 02 28 6B EE
+        // Find Transact: 0x06 + 0x01 (SovereignAccount) + 0x01 (Option::Some)
+        for (uint256 i = 2; i < msg_.length - 12; i++) {
+            if (uint8(msg_[i]) == 0x06 && uint8(msg_[i + 1]) == 0x01 && uint8(msg_[i + 2]) == 0x01) {
+                // i+3..i+6: compact refTime (500M) = 02 94 35 77
                 assertEq(uint8(msg_[i + 3]), 0x02, "compact refTime byte 0");
-                assertEq(uint8(msg_[i + 4]), 0x28, "compact refTime byte 1");
-                assertEq(uint8(msg_[i + 5]), 0x6B, "compact refTime byte 2");
-                assertEq(uint8(msg_[i + 6]), 0xEE, "compact refTime byte 3");
+                assertEq(uint8(msg_[i + 4]), 0x94, "compact refTime byte 1");
+                assertEq(uint8(msg_[i + 5]), 0x35, "compact refTime byte 2");
+                assertEq(uint8(msg_[i + 6]), 0x77, "compact refTime byte 3");
                 // i+7..i+10: compact proofSize (20K) = 82 38 01 00
                 assertEq(uint8(msg_[i + 7]), 0x82, "compact proofSize byte 0");
                 assertEq(uint8(msg_[i + 8]), 0x38, "compact proofSize byte 1");
