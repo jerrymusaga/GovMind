@@ -34,7 +34,7 @@ function getOracle() {
   if (!_oracle) {
     const address =
       process.env.AI_ORACLE_ADDRESS ||
-      "0x8DD746657Cbc7BE0f322F20780c6AD1EEdBD03Af";
+      "0x7bD88Cd06d781B2cf39f509D0a7909160DcE95da";
     _oracle = new ethers.Contract(address, AI_ORACLE_ABI, getSigner());
   }
   return _oracle;

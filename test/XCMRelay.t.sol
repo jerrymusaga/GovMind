@@ -191,13 +191,27 @@ contract XCMRelayTest is Test {
 
         // First byte: V5 prefix
         assertEq(uint8(msg_[0]), 0x05, "XCM V5 prefix");
-        // Second byte: compact(5) = 5 instructions = 0x14
-        assertEq(uint8(msg_[1]), 0x14, "5 instructions compact");
+        // Second byte: compact(2) = 2 outer instructions = 0x08
+        assertEq(uint8(msg_[1]), 0x08, "2 outer instructions compact");
         // Third byte: WithdrawAsset instruction discriminant
         assertEq(uint8(msg_[2]), 0x00, "WithdrawAsset discriminant");
 
         // Verify message is non-trivial (has real content)
         assertTrue(msg_.length > 30, "XCM message should have substantial content");
+    }
+
+    function test_XcmMessageContainsInitiateTeleport() public view {
+        bytes memory msg_ = relay.previewXcmMessage(1836, true, 1, 100_000_000_000);
+
+        // Search for InitiateTeleport discriminant (17 = 0x11)
+        bool foundTeleport = false;
+        for (uint256 i = 2; i < msg_.length; i++) {
+            if (uint8(msg_[i]) == 0x11) {
+                foundTeleport = true;
+                break;
+            }
+        }
+        assertTrue(foundTeleport, "XCM message should contain InitiateTeleport instruction");
     }
 
     function test_XcmMessageContainsBuyExecution() public view {
@@ -299,7 +313,7 @@ contract XCMRelayTest is Test {
         // Mock the XCM precompile call since it won't exist in forge test
         vm.mockCall(
             address(0x0A0000),
-            abi.encodeWithSelector(IXcm.send.selector),
+            abi.encodeWithSelector(IXcm.execute.selector),
             ""
         );
 
@@ -310,7 +324,7 @@ contract XCMRelayTest is Test {
     function test_RelayRecordsVote() public {
         vm.mockCall(
             address(0x0A0000),
-            abi.encodeWithSelector(IXcm.send.selector),
+            abi.encodeWithSelector(IXcm.execute.selector),
             ""
         );
 
@@ -329,7 +343,7 @@ contract XCMRelayTest is Test {
     function test_RelayEmitsEvent() public {
         vm.mockCall(
             address(0x0A0000),
-            abi.encodeWithSelector(IXcm.send.selector),
+            abi.encodeWithSelector(IXcm.execute.selector),
             ""
         );
 
@@ -344,7 +358,7 @@ contract XCMRelayTest is Test {
     function test_MultipleRelays() public {
         vm.mockCall(
             address(0x0A0000),
-            abi.encodeWithSelector(IXcm.send.selector),
+            abi.encodeWithSelector(IXcm.execute.selector),
             ""
         );
 
@@ -379,30 +393,22 @@ contract XCMRelayTest is Test {
         assertEq(uint8(result[7]), 0x00);
     }
 
-    function test_TransactWeightIsCompact() public view {
-        // The XCM V5 Transact weight uses compact encoding.
-        // With transactRefTime = 500_000_000 and transactProofSize = 20_000:
-        // compact(500_000_000) = 4-byte mode: (500M << 2) | 2 = 0x77359402, LE: 02 94 35 77
-        // compact(20_000) = 4-byte mode: (20000 << 2) | 2 = 0x13882, LE: 82 38 01 00
+    function test_TransactUsesOptionNone() public view {
+        // V5 Transact uses Option::None for fallback_max_weight
+        // Encoding: Transact(06) + SovereignAccount(01) + None(00) + Vec<u8>(call)
         bytes memory msg_ = relay.previewXcmMessage(1, true, 1, 10_000_000_000);
 
-        // Find Transact: 0x06 + 0x01 (SovereignAccount) + 0x01 (Option::Some)
-        for (uint256 i = 2; i < msg_.length - 12; i++) {
-            if (uint8(msg_[i]) == 0x06 && uint8(msg_[i + 1]) == 0x01 && uint8(msg_[i + 2]) == 0x01) {
-                // i+3..i+6: compact refTime (500M) = 02 94 35 77
-                assertEq(uint8(msg_[i + 3]), 0x02, "compact refTime byte 0");
-                assertEq(uint8(msg_[i + 4]), 0x94, "compact refTime byte 1");
-                assertEq(uint8(msg_[i + 5]), 0x35, "compact refTime byte 2");
-                assertEq(uint8(msg_[i + 6]), 0x77, "compact refTime byte 3");
-                // i+7..i+10: compact proofSize (20K) = 82 38 01 00
-                assertEq(uint8(msg_[i + 7]), 0x82, "compact proofSize byte 0");
-                assertEq(uint8(msg_[i + 8]), 0x38, "compact proofSize byte 1");
-                assertEq(uint8(msg_[i + 9]), 0x01, "compact proofSize byte 2");
-                assertEq(uint8(msg_[i + 10]), 0x00, "compact proofSize byte 3");
+        // Find Transact: 0x06 + 0x01 (SovereignAccount) + 0x00 (Option::None)
+        for (uint256 i = 2; i < msg_.length - 3; i++) {
+            if (uint8(msg_[i]) == 0x06 && uint8(msg_[i + 1]) == 0x01 && uint8(msg_[i + 2]) == 0x00) {
+                // Next byte should be compact Vec length of the call
+                // Call is 20 bytes for ref index 1: pallet(1) + call(1) + compact(1)=1 + standard(1) + vote(1) + u128(16) = 21
+                // Actually let's just verify it's a valid compact length > 0
+                assertTrue(uint8(msg_[i + 3]) > 0, "call Vec should have non-zero length");
                 return;
             }
         }
-        revert("Transact instruction not found in XCM message");
+        revert("Transact with Option::None not found in XCM message");
     }
 
     // ================================================================

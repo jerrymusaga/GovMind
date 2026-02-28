@@ -13,9 +13,10 @@ import "./interfaces/IXcm.sol";
 ///      1. User/AI votes through GovMindCore on Hub EVM
 ///      2. GovMindCore calls this contract to relay the vote
 ///      3. This contract SCALE-encodes the convictionVoting.vote() call
-///      4. Sends an XCM V5 message via send() to the Relay Chain:
-///         WithdrawAsset → BuyExecution → Transact(vote) → RefundSurplus → DepositAsset
-///      5. The XCM precompile dispatches the message to the Relay Chain
+///      4. Constructs an XCM V5 message using execute() + InitiateTeleport:
+///         - Outer (Hub): WithdrawAsset(DOT) → InitiateTeleport(to relay)
+///         - Inner (Relay): BuyExecution → Transact(vote) → RefundSurplus → DepositAsset
+///      5. Executes via the XCM precompile which teleports DOT + instructions to Relay
 ///
 ///      The vote executes from Hub's sovereign account on the Relay Chain,
 ///      acting as a governance delegate for all opt-in users.
@@ -42,6 +43,7 @@ contract XCMGovernanceRelay is Ownable {
     uint8 constant XCM_WITHDRAW_ASSET = 0;
     uint8 constant XCM_TRANSACT = 6;
     uint8 constant XCM_DEPOSIT_ASSET = 13;
+    uint8 constant XCM_INITIATE_TELEPORT = 17;
     uint8 constant XCM_BUY_EXECUTION = 19;
     uint8 constant XCM_REFUND_SURPLUS = 20;
 
@@ -59,6 +61,10 @@ contract XCMGovernanceRelay is Ownable {
     /// @notice Fee amount in plancks to pay for XCM execution on relay chain
     /// @dev 1 DOT = 10^10 plancks. Default 0.1 DOT for safety margin.
     uint128 public xcmFeeAmount = 1_000_000_000; // 0.1 DOT
+
+    /// @notice Weight limits for local XCM execute on Hub
+    uint64 public executeRefTime = 50_000_000_000;  // 50s (generous for teleport)
+    uint64 public executeProofSize = 500_000;         // 500KB
 
     // ============================================================
     //                         STATE
@@ -151,12 +157,11 @@ contract XCMGovernanceRelay is Ownable {
             _amount
         );
 
-        // 2. Build the XCM message for relay chain execution
+        // 2. Build the XCM message (execute with InitiateTeleport)
         bytes memory xcmMessage = _buildXcmMessage(encodedCall);
 
-        // 3. Send via XCM precompile to the relay chain
-        bytes memory dest = _encodeRelayChainDestination();
-        XCM_PRECOMPILE.send(dest, xcmMessage);
+        // 3. Execute via XCM precompile (InitiateTeleport routes to relay)
+        XCM_PRECOMPILE.execute(xcmMessage, IXcm.Weight(executeRefTime, executeProofSize));
 
         // 5. Record the relay
         relayedVotes[_referendumIndex].push(RelayedVote({
@@ -219,20 +224,36 @@ contract XCMGovernanceRelay is Ownable {
     //                 XCM MESSAGE CONSTRUCTION
     // ============================================================
 
-    /// @notice Build a complete XCM V5 message for relay chain execution
-    /// @dev Sent via send() to the relay chain. Message structure:
+    /// @notice Build a complete XCM V5 message for execute-based vote relay
+    /// @dev Uses execute() with InitiateTeleport. Message structure:
     ///      VersionedXcm::V5([
-    ///        WithdrawAsset([ DOT(xcmFeeAmount) ]),
-    ///        BuyExecution { fees: DOT, weight_limit: Unlimited },
-    ///        Transact { origin_kind: SovereignAccount, call },
-    ///        RefundSurplus,
-    ///        DepositAsset { assets: Wild(All), beneficiary: Here }
+    ///        WithdrawAsset([ DOT(xcmFeeAmount) ]),     // on Hub
+    ///        InitiateTeleport {                         // teleport to relay chain
+    ///          assets: Wild(All),
+    ///          dest: Location(1, Here),
+    ///          xcm: [                                   // executes on relay chain
+    ///            BuyExecution { fees: DOT(native), weight_limit: Unlimited },
+    ///            Transact { origin_kind: SovereignAccount, call },
+    ///            RefundSurplus,
+    ///            DepositAsset { assets: Wild(All), beneficiary: Here }
+    ///          ]
+    ///        }
     ///      ])
     function _buildXcmMessage(bytes memory encodedCall) internal view returns (bytes memory) {
+        bytes memory innerXcm = _buildInnerXcm(encodedCall);
+
         return abi.encodePacked(
             XCM_V5,                                  // Version prefix
-            ScaleCodec.encodeCompactU32(5),          // 5 instructions
-            _encodeWithdrawAsset(xcmFeeAmount),
+            ScaleCodec.encodeCompactU32(2),          // 2 outer instructions
+            _encodeWithdrawAsset(xcmFeeAmount),      // Withdraw DOT on Hub
+            _encodeInitiateTeleport(innerXcm)        // Teleport to relay + inner XCM
+        );
+    }
+
+    /// @notice Build the inner XCM instructions for relay chain execution
+    function _buildInnerXcm(bytes memory encodedCall) internal view returns (bytes memory) {
+        return abi.encodePacked(
+            ScaleCodec.encodeCompactU32(4),          // 4 inner instructions
             _encodeBuyExecution(xcmFeeAmount),
             _encodeTransact(encodedCall),
             uint8(XCM_REFUND_SURPLUS),
@@ -266,19 +287,30 @@ contract XCMGovernanceRelay is Ownable {
         );
     }
 
+    /// @notice Encode InitiateTeleport instruction
+    /// @dev InitiateTeleport { assets: Wild(All), dest: RelayChain, xcm: innerInstructions }
+    function _encodeInitiateTeleport(bytes memory innerXcm) internal pure returns (bytes memory) {
+        return abi.encodePacked(
+            XCM_INITIATE_TELEPORT,  // Instruction discriminant (17)
+            uint8(0x01),            // AssetFilter::Wild variant
+            uint8(0x00),            // WildAsset::All
+            uint8(0x01),            // dest: Location.parents = 1 (relay chain)
+            uint8(0x00),            // dest: Location.interior = Here
+            innerXcm                // Inner XCM (already has compact Vec length)
+        );
+    }
+
     /// @notice Encode Transact instruction (XCM V5 format)
     /// @dev V5 changed require_weight_at_most → fallback_max_weight: Option<Weight>
     ///      Transact { origin_kind, fallback_max_weight: Option<Weight>, call }
     ///      origin_kind: OriginKind::SovereignAccount (1)
-    ///      fallback_max_weight: Some(Weight { ref_time, proof_size }) — compact encoded
+    ///      fallback_max_weight: None (V5 handles weight automatically)
     ///      call: DoubleEncoded (SCALE Vec<u8> of the encoded pallet call)
-    function _encodeTransact(bytes memory call) internal view returns (bytes memory) {
+    function _encodeTransact(bytes memory call) internal pure returns (bytes memory) {
         return abi.encodePacked(
             XCM_TRANSACT,                                    // Instruction discriminant (6)
             ORIGIN_SOVEREIGN_ACCOUNT,                        // OriginKind (1)
-            uint8(0x01),                                     // Option::Some
-            ScaleCodec.encodeCompactU64(transactRefTime),    // fallback_max_weight.refTime (compact)
-            ScaleCodec.encodeCompactU64(transactProofSize),  // fallback_max_weight.proofSize (compact)
+            uint8(0x00),                                     // Option::None (no fallback weight)
             ScaleCodec.encodeVecU8(call)                     // Encoded call as Vec<u8>
         );
     }
@@ -300,13 +332,13 @@ contract XCMGovernanceRelay is Ownable {
     //                    ASSET ENCODING
     // ============================================================
 
-    /// @notice Encode a native DOT asset for BuyExecution on relay chain
-    /// @dev Asset { id: AssetId(Location { parents: 1, interior: Here }),
+    /// @notice Encode a native DOT asset for inner XCM on relay chain
+    /// @dev Asset { id: AssetId(Location { parents: 0, interior: Here }),
     ///              fun: Fungibility::Fungible(amount) }
-    ///      parents:1 references the relay chain token from Hub's message context
+    ///      parents:0 = native asset on the relay chain (where inner XCM executes)
     function _encodeNativeDotAsset(uint128 amount) internal pure returns (bytes memory) {
         return abi.encodePacked(
-            uint8(0x01),                             // AssetId: Location.parents = 1
+            uint8(0x00),                             // AssetId: Location.parents = 0
             uint8(0x00),                             // AssetId: Location.interior = Here
             uint8(0x00),                             // Fungibility::Fungible variant
             ScaleCodec.encodeCompactU128(amount)     // Amount (compact)
