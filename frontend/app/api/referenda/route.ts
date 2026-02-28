@@ -15,9 +15,8 @@ export async function GET(request: NextRequest) {
     if (track && track !== "all") {
       url += `&trackNo=${track}`;
     }
-    if (status && status !== "all") {
-      url += `&trackStatus=${status}`;
-    }
+    // Note: Polkassembly doesn't support trackStatus filtering server-side.
+    // Status filtering is done client-side after fetching.
 
     const res = await fetch(url, {
       headers: { "x-network": "polkadot" },

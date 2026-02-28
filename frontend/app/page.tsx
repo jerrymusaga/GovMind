@@ -331,45 +331,37 @@ function ProposalsSection() {
   // Filters
   const [search, setSearch] = useState("");
   const [trackFilter, setTrackFilter] = useState("all");
-  const [statusFilter, setStatusFilter] = useState("votable");
+  const [statusFilter, setStatusFilter] = useState("all");
 
   const LIMIT = 24;
+
+  // Votable states: proposals users can still vote on
+  const VOTABLE_STATES = new Set(["Deciding", "Confirming"]);
 
   const fetchReferenda = useCallback(async (pageNum: number, append = false) => {
     setLoading(true);
     setError(null);
     try {
-      // "votable" fetches both Deciding and Confirming in parallel
-      const statuses = statusFilter === "votable"
-        ? ["Deciding", "Confirming"]
-        : [statusFilter];
-
-      const fetches = statuses.map((s) => {
-        const params = new URLSearchParams({
-          page: String(pageNum),
-          limit: String(LIMIT),
-        });
-        if (trackFilter !== "all") params.set("track", trackFilter);
-        if (s !== "all") params.set("status", s);
-        return fetch(`/api/referenda?${params}`).then((r) => r.json());
+      // Fetch more results when filtering client-side to ensure enough matches
+      const fetchLimit = statusFilter !== "all" ? LIMIT * 3 : LIMIT;
+      const params = new URLSearchParams({
+        page: String(pageNum),
+        limit: String(fetchLimit),
       });
+      if (trackFilter !== "all") params.set("track", trackFilter);
 
-      const results = await Promise.all(fetches);
+      const res = await fetch(`/api/referenda?${params}`);
+      if (!res.ok) throw new Error("Failed to fetch");
+      const data = await res.json();
 
-      let items: ReferendumListing[] = [];
-      let totalCount = 0;
-      for (const data of results) {
-        items = items.concat(data.referenda || []);
-        totalCount += data.total || 0;
+      let items: ReferendumListing[] = data.referenda || [];
+
+      // Client-side status filtering (Polkassembly doesn't support server-side)
+      if (statusFilter === "votable") {
+        items = items.filter((r) => VOTABLE_STATES.has(r.state));
+      } else if (statusFilter !== "all") {
+        items = items.filter((r) => r.state === statusFilter);
       }
-
-      // Deduplicate by referendumIndex and sort newest first
-      const seen = new Set<number>();
-      items = items.filter((r) => {
-        if (seen.has(r.referendumIndex)) return false;
-        seen.add(r.referendumIndex);
-        return true;
-      }).sort((a, b) => b.referendumIndex - a.referendumIndex);
 
       if (append) {
         setReferenda((prev) => {
@@ -379,8 +371,8 @@ function ProposalsSection() {
       } else {
         setReferenda(items);
       }
-      setTotal(totalCount);
-      setHasMore(items.length === LIMIT);
+      setTotal(data.total || items.length);
+      setHasMore(items.length > 0 && (data.referenda || []).length === fetchLimit);
     } catch {
       setError("Failed to load proposals from Polkassembly. Using on-chain data only.");
       if (!append) setReferenda([]);
