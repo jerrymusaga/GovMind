@@ -46,6 +46,7 @@ import {
   FileCode,
   Copy,
   Check,
+  XCircle,
 } from "lucide-react";
 import Link from "next/link";
 import clsx from "clsx";
@@ -500,10 +501,17 @@ function RiskGauge({ score }: { score: number }) {
   );
 }
 
+// States where voting is no longer possible
+const ENDED_STATES = new Set([
+  "Cancelled", "Killed", "TimedOut", "Approved", "Rejected", "Executed", "Confirmed",
+]);
+
 function VotePanel({
   referendumIndex,
+  proposalState,
 }: {
   referendumIndex: number;
+  proposalState: string | null;
 }) {
   const { address, isConnected } = useAccount();
   const [conviction, setConviction] = useState(1);
@@ -542,6 +550,26 @@ function VotePanel({
   };
 
   if (!isConnected) return null;
+
+  // Proposal has ended — voting no longer possible
+  const isEnded = proposalState && ENDED_STATES.has(proposalState);
+  if (isEnded) {
+    return (
+      <div className="glass-card p-5">
+        <div className="flex items-center gap-3 text-gray-400">
+          <XCircle className="w-5 h-5" />
+          <div>
+            <span className="text-sm font-semibold block">
+              Voting Closed
+            </span>
+            <span className="text-xs text-gray-500">
+              This proposal is {proposalState.toLowerCase()} — votes can no longer be cast
+            </span>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   if (alreadyVoted) {
     return (
@@ -1105,6 +1133,9 @@ export default function ProposalDetailPage() {
     query: { enabled: isConnected && !!address },
   });
 
+  // Proposal metadata from Polkassembly (for state / voting guard)
+  const [proposalState, setProposalState] = useState<string | null>(null);
+
   // Rich analysis from API
   const [deepData, setDeepData] = useState<ApiAnalysis | null>(null);
   const [apiLoading, setApiLoading] = useState(true);
@@ -1123,7 +1154,20 @@ export default function ProposalDetailPage() {
         setApiLoading(false);
       }
     }
+    // Fetch proposal state from Polkassembly proxy
+    async function fetchState() {
+      try {
+        const res = await fetch(`/api/referenda/${referendumIndex}`);
+        if (res.ok) {
+          const data = await res.json();
+          setProposalState(data.state || null);
+        }
+      } catch {
+        // Non-critical
+      }
+    }
     fetchDeep();
+    fetchState();
   }, [referendumIndex]);
 
   const hasOnChain = analysis?.exists ?? false;
@@ -1587,7 +1631,7 @@ export default function ProposalDetailPage() {
 
           {/* ── Row 4: Vote + GovMind Stats ── */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <VotePanel referendumIndex={referendumIndex} />
+            <VotePanel referendumIndex={referendumIndex} proposalState={proposalState} />
             <div className="glass-card p-5">
               <SectionHeader
                 icon={BarChart3}
