@@ -3,8 +3,11 @@ import { fetchReferendum, fetchHistoricalPrecedents } from "./subsquare.js";
 import { analyzeProposal } from "./analyzer.js";
 import {
   publishAnalysis,
+  updateOnChainAnalysis,
   hasExistingAnalysis,
+  getOnChainAnalysis,
 } from "./contracts.js";
+import { detectChanges, saveSnapshot, cooldownExpired } from "./detector.js";
 
 /**
  * GovMind API Server
@@ -71,20 +74,6 @@ async function handleAnalyzeRequest(id, res) {
     return json(res, { error: "Analysis already in progress", referendumIndex: id }, 409);
   }
 
-  // Check if already analyzed on-chain
-  try {
-    const exists = await hasExistingAnalysis(id);
-    if (exists) {
-      const cached = analysisStore.get(id);
-      if (cached) {
-        return json(res, { ...cached, alreadyExisted: true });
-      }
-      return json(res, { error: "Already analyzed on-chain", referendumIndex: id, alreadyExisted: true }, 200);
-    }
-  } catch (err) {
-    console.warn(`  Could not check on-chain status: ${err.message}`);
-  }
-
   analysisInProgress.add(id);
   console.log(`\n[ON-DEMAND] Analyzing referendum #${id}...`);
 
@@ -96,24 +85,94 @@ async function handleAnalyzeRequest(id, res) {
       return json(res, { error: "Proposal not found on Polkassembly" }, 404);
     }
 
-    // 2. Fetch historical precedents
-    console.log("  Fetching historical precedents...");
+    // 2. Check if analysis already exists on-chain
+    let exists = false;
+    try {
+      exists = await hasExistingAnalysis(id);
+    } catch (err) {
+      console.warn(`  Could not check on-chain status: ${err.message}`);
+    }
+
+    if (exists) {
+      // Check if proposal has materially changed since last analysis
+      const { changed, reasons } = detectChanges(proposal);
+
+      if (!changed || !cooldownExpired(id)) {
+        // No changes (or cooldown active) — return existing analysis
+        const cached = analysisStore.get(id);
+        if (cached) {
+          return json(res, { ...cached, alreadyExisted: true });
+        }
+        return json(res, {
+          referendumIndex: id,
+          alreadyExisted: true,
+          message: "Analysis already exists on-chain with no material changes detected",
+        });
+      }
+
+      // Material changes detected — re-analyze
+      console.log(`  [CHANGE DETECTED] Re-analyzing...`);
+      for (const reason of reasons) {
+        console.log(`    -> ${reason}`);
+      }
+
+      const historicalData = await fetchHistoricalPrecedents(proposal, 3);
+      const analysis = await analyzeProposal(proposal, historicalData);
+      logResult(id, analysis);
+
+      storeAnalysis(id, analysis);
+      storeProposalMeta(id, proposal);
+
+      // Compare with on-chain to decide if update is worthwhile
+      const onChain = await getOnChainAnalysis(id);
+      const recChanged = onChain && onChain.recommendation !== analysis.recommendation;
+      const riskDelta = onChain ? Math.abs(onChain.riskScore - analysis.riskScore) : 0;
+      const confDelta = onChain ? Math.abs(onChain.confidence - analysis.confidence) : 0;
+
+      let publishedOnChain = false;
+      if (recChanged || riskDelta >= 10 || confDelta >= 15) {
+        console.log(`  Publishing updated analysis to AIOracle...`);
+        const receipt = await updateOnChainAnalysis(id, analysis, onChain.version);
+        publishedOnChain = !!receipt;
+        if (receipt) {
+          saveSnapshot(proposal);
+          console.log(`  Updated on-chain! TX: ${receipt.hash}`);
+        }
+      } else {
+        console.log(`  Changes detected but analysis delta too small, skipping on-chain update.`);
+        saveSnapshot(proposal);
+      }
+
+      return json(res, {
+        ...analysis,
+        referendumIndex: id,
+        reanalysis: true,
+        changeReasons: reasons,
+        proposal: {
+          title: proposal.title,
+          track: proposal.track,
+          trackName: proposal.trackName,
+          state: proposal.state,
+          proposer: proposal.proposer,
+        },
+        publishedOnChain,
+      });
+    }
+
+    // 3. First-time analysis — no on-chain data exists
+    console.log("  [NEW] Running first AI analysis...");
     const historicalData = await fetchHistoricalPrecedents(proposal, 3);
-
-    // 3. Run GPT analysis
-    console.log("  Running GPT analysis...");
     const analysis = await analyzeProposal(proposal, historicalData);
-    console.log(`  Result: ${analysis.recommendation === 1 ? "AYE" : analysis.recommendation === -1 ? "NAY" : "ABSTAIN"} | Risk: ${analysis.riskScore}/100`);
+    logResult(id, analysis);
 
-    // 4. Store locally
     storeAnalysis(id, analysis);
     storeProposalMeta(id, proposal);
 
-    // 5. Publish on-chain
     console.log("  Publishing to AIOracle on-chain...");
     const receipt = await publishAnalysis(id, proposal.track, analysis);
 
     if (receipt) {
+      saveSnapshot(proposal);
       console.log(`  Published! TX: ${receipt.hash}`);
     } else {
       console.log("  Skipped on-chain publish (may already exist)");
@@ -243,6 +302,11 @@ export function startApiServer(port = 3001) {
   });
 
   return server;
+}
+
+function logResult(id, analysis) {
+  const rec = analysis.recommendation === 1 ? "AYE" : analysis.recommendation === -1 ? "NAY" : "ABSTAIN";
+  console.log(`  Result: ${rec} | Risk: ${analysis.riskScore}/100 | Confidence: ${analysis.confidence}/100`);
 }
 
 function json(res, data, status = 200) {
