@@ -506,12 +506,20 @@ const ENDED_STATES = new Set([
   "Cancelled", "Killed", "TimedOut", "Approved", "Rejected", "Executed", "Confirmed",
 ]);
 
+interface VoteParams {
+  aye: boolean;
+  conviction: number;
+  amount: string;
+}
+
 function VotePanel({
   referendumIndex,
   proposalState,
+  onVoteSuccess,
 }: {
   referendumIndex: number;
   proposalState: string | null;
+  onVoteSuccess?: (params: VoteParams) => void;
 }) {
   const { address, isConnected } = useAccount();
   const [conviction, setConviction] = useState(1);
@@ -533,6 +541,13 @@ function VotePanel({
   } = useWriteContract();
   const { isLoading: isConfirming, isSuccess } =
     useWaitForTransactionReceipt({ hash: voteTxHash });
+
+  // Notify parent when vote is confirmed
+  useEffect(() => {
+    if (isSuccess && votingAye !== null && onVoteSuccess) {
+      onVoteSuccess({ aye: votingAye, conviction, amount });
+    }
+  }, [isSuccess]);
 
   const handleVote = (aye: boolean) => {
     setVotingAye(aye);
@@ -679,21 +694,27 @@ function SectionHeader({
 
 // ─── XCM Verification Panel ───
 
-function XCMVerificationPanel({ referendumIndex }: { referendumIndex: number }) {
+function XCMVerificationPanel({
+  referendumIndex,
+  voteParams,
+}: {
+  referendumIndex: number;
+  voteParams: VoteParams;
+}) {
   const [expanded, setExpanded] = useState(false);
   const [showRawBytes, setShowRawBytes] = useState(false);
   const [copiedXcm, setCopiedXcm] = useState(false);
-
-  // Sample vote params for preview (Aye, conviction 1, 10 DOT in plancks)
-  const sampleAye = true;
-  const sampleConviction = 1;
-  const sampleAmount = BigInt("100000000000"); // 10 DOT = 10 * 10^10 plancks
 
   const { data: xcmMessage } = useReadContract({
     address: ADDRESSES.xcmRelay,
     abi: XCM_RELAY_ABI,
     functionName: "previewXcmMessage",
-    args: [referendumIndex, sampleAye, sampleConviction, sampleAmount],
+    args: [
+      referendumIndex,
+      voteParams.aye,
+      voteParams.conviction,
+      parseEther(voteParams.amount || "0"),
+    ],
     query: { enabled: expanded },
   });
 
@@ -716,9 +737,9 @@ function XCMVerificationPanel({ referendumIndex }: { referendumIndex: number }) 
             <Code2 className="w-4.5 h-4.5 text-polkadot-purple" />
           </div>
           <div className="text-left">
-            <p className="text-sm font-semibold text-white">Verify XCM Encoding</p>
+            <p className="text-sm font-semibold text-white">Verify Your XCM Vote</p>
             <p className="text-[11px] text-gray-500">
-              How your vote reaches the Relay Chain
+              Your {voteParams.aye ? "Aye" : "Nay"} vote ({voteParams.amount} PAS, {voteParams.conviction}x conviction) — see how it reaches Relay Chain
             </p>
           </div>
         </div>
@@ -952,6 +973,9 @@ export default function ProposalDetailPage() {
 
   // Proposal metadata from Polkassembly (for state / voting guard)
   const [proposalState, setProposalState] = useState<string | null>(null);
+
+  // Track user's vote for XCM verification panel
+  const [voteParams, setVoteParams] = useState<VoteParams | null>(null);
 
   // Rich analysis from API
   const [deepData, setDeepData] = useState<ApiAnalysis | null>(null);
@@ -1448,7 +1472,7 @@ export default function ProposalDetailPage() {
 
           {/* ── Row 4: Vote + GovMind Stats ── */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <VotePanel referendumIndex={referendumIndex} proposalState={proposalState} />
+            <VotePanel referendumIndex={referendumIndex} proposalState={proposalState} onVoteSuccess={setVoteParams} />
             <div className="glass-card p-5">
               <SectionHeader
                 icon={BarChart3}
@@ -1498,8 +1522,10 @@ export default function ProposalDetailPage() {
             </div>
           </div>
 
-          {/* ── Row 6: Verify XCM Encoding ── */}
-          <XCMVerificationPanel referendumIndex={referendumIndex} />
+          {/* ── Row 6: Verify XCM Encoding (only after user votes) ── */}
+          {voteParams && (
+            <XCMVerificationPanel referendumIndex={referendumIndex} voteParams={voteParams} />
+          )}
 
           {/* Loading indicator for deep analysis */}
           {apiLoading && !deep && (
