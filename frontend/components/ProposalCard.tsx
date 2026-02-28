@@ -15,6 +15,7 @@ import {
   TrendingUp,
   Brain,
   ChevronRight,
+  User,
 } from "lucide-react";
 import clsx from "clsx";
 
@@ -22,6 +23,9 @@ interface ProposalCardProps {
   referendumIndex: number;
   title?: string;
   track?: number;
+  proposer?: string;
+  state?: string;
+  createdAt?: string;
 }
 
 function RecommendationBadge({ value }: { value: number }) {
@@ -96,7 +100,44 @@ function AlignmentRing({ score }: { score: number }) {
   );
 }
 
-export function ProposalCard({ referendumIndex, title, track }: ProposalCardProps) {
+function StatusBadge({ state }: { state: string }) {
+  const colors: Record<string, string> = {
+    Deciding: "bg-blue-500/10 text-blue-400 border-blue-500/20",
+    Confirming: "bg-amber-500/10 text-amber-400 border-amber-500/20",
+    Approved: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20",
+    Rejected: "bg-red-500/10 text-red-400 border-red-500/20",
+    Cancelled: "bg-gray-500/10 text-gray-400 border-gray-500/20",
+    TimedOut: "bg-gray-500/10 text-gray-400 border-gray-500/20",
+    Executed: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20",
+  };
+  const cls = colors[state] || "bg-gray-500/10 text-gray-400 border-gray-500/20";
+
+  return (
+    <span className={clsx("px-2 py-0.5 text-[10px] font-medium rounded-md border", cls)}>
+      {state}
+    </span>
+  );
+}
+
+function truncateAddr(addr: string) {
+  if (!addr || addr.length < 12) return addr;
+  return `${addr.slice(0, 6)}...${addr.slice(-4)}`;
+}
+
+function timeAgo(dateStr: string) {
+  if (!dateStr) return "";
+  const d = new Date(dateStr);
+  const now = new Date();
+  const diffMs = now.getTime() - d.getTime();
+  const days = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+  if (days < 1) return "today";
+  if (days === 1) return "1d ago";
+  if (days < 30) return `${days}d ago`;
+  const months = Math.floor(days / 30);
+  return `${months}mo ago`;
+}
+
+export function ProposalCard({ referendumIndex, title, track, proposer, state, createdAt }: ProposalCardProps) {
   const { address, isConnected } = useAccount();
 
   const { data: analysis } = useReadContract({
@@ -128,15 +169,18 @@ export function ProposalCard({ referendumIndex, title, track }: ProposalCardProp
     <Link href={`/proposals/${referendumIndex}`}>
       <div className="glass-card-hover p-5 group cursor-pointer">
         {/* Header */}
-        <div className="flex items-start justify-between gap-3 mb-4">
+        <div className="flex items-start justify-between gap-3 mb-3">
           <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2 mb-2">
+            <div className="flex items-center gap-2 mb-2 flex-wrap">
               <span className="px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider bg-polkadot-pink/10 text-polkadot-pink rounded-md">
                 #{referendumIndex}
               </span>
               <span className="px-2 py-0.5 text-[10px] font-medium text-gray-400 bg-surface-3 rounded-md">
                 {TRACK_NAMES[trackNum] || `Track ${trackNum}`}
               </span>
+              {state && state !== "Unknown" && (
+                <StatusBadge state={state} />
+              )}
               {hasAnalysis && (
                 <span className="px-2 py-0.5 text-[10px] font-medium text-polkadot-purple bg-polkadot-purple/10 rounded-md flex items-center gap-1">
                   <Brain className="w-2.5 h-2.5" /> AI
@@ -149,6 +193,21 @@ export function ProposalCard({ referendumIndex, title, track }: ProposalCardProp
           </div>
           <ArrowUpRight className="w-4 h-4 text-gray-500 group-hover:text-polkadot-pink transition-colors flex-shrink-0 mt-1" />
         </div>
+
+        {/* Proposer & date row */}
+        {(proposer || createdAt) && (
+          <div className="flex items-center gap-3 mb-3 text-[11px] text-gray-500">
+            {proposer && (
+              <span className="flex items-center gap-1">
+                <User className="w-3 h-3" />
+                {truncateAddr(proposer)}
+              </span>
+            )}
+            {createdAt && (
+              <span>{timeAgo(createdAt)}</span>
+            )}
+          </div>
+        )}
 
         {/* AI Analysis Section */}
         {hasAnalysis ? (

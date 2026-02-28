@@ -1,5 +1,6 @@
 "use client";
 
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { useAccount, useReadContract } from "wagmi";
 import { ConnectButton } from "@rainbow-me/rainbowkit";
 import {
@@ -7,6 +8,7 @@ import {
   AI_ORACLE_ABI,
   IDENTITY_VAULT_ABI,
   XCM_RELAY_ABI,
+  TRACK_NAMES,
 } from "@/lib/contracts";
 import { StatsHero } from "@/components/StatsHero";
 import { ProposalCard } from "@/components/ProposalCard";
@@ -19,17 +21,28 @@ import {
   Zap,
   Globe,
   Layers,
+  Search,
+  Filter,
+  Loader2,
+  ChevronDown,
+  RefreshCw,
 } from "lucide-react";
 import Link from "next/link";
 
-// Known referenda that may have been analyzed by the backend
-const KNOWN_REFERENDA = [
-  { id: 1836, title: "Polkadot-API 2026 Development Funding" },
-  { id: 1831, title: "Polkadot Staking Dashboard: Protocol-Aligned Development" },
-  { id: 1772, title: "Staking Dashboard: Improvements & DeFi Integration" },
-  { id: 1766, title: "Polkawatch Decentralization Analytics Maintenance" },
-  { id: 1703, title: "Polkadot Staking Dashboard: Sept 2025 - March 2026" },
-];
+// ─── Types ───
+
+interface ReferendumListing {
+  referendumIndex: number;
+  title: string;
+  track: number;
+  trackName: string;
+  state: string;
+  proposer: string;
+  createdAt: string;
+  commentsCount: number;
+}
+
+// ─── Hero Section ───
 
 function HeroSection() {
   const { isConnected } = useAccount();
@@ -120,6 +133,8 @@ function HeroSection() {
   );
 }
 
+// ─── Identity Banner ───
+
 function IdentityBanner() {
   const { address, isConnected } = useAccount();
 
@@ -156,6 +171,8 @@ function IdentityBanner() {
     </div>
   );
 }
+
+// ─── XCM Banner ───
 
 function XCMBanner() {
   const { data: relayEnabled } = useReadContract({
@@ -220,77 +237,280 @@ function XCMBanner() {
   );
 }
 
-export default function Dashboard() {
+// ─── Search & Filter Bar ───
+
+interface FiltersProps {
+  search: string;
+  onSearchChange: (v: string) => void;
+  track: string;
+  onTrackChange: (v: string) => void;
+  status: string;
+  onStatusChange: (v: string) => void;
+  onRefresh: () => void;
+  loading: boolean;
+}
+
+function SearchFilterBar({
+  search, onSearchChange,
+  track, onTrackChange,
+  status, onStatusChange,
+  onRefresh, loading,
+}: FiltersProps) {
+  return (
+    <div className="flex flex-col sm:flex-row gap-3 mb-6">
+      {/* Search */}
+      <div className="relative flex-1">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
+        <input
+          type="text"
+          placeholder="Search proposals by title, ID, or proposer..."
+          value={search}
+          onChange={(e) => onSearchChange(e.target.value)}
+          className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-surface-2 border border-white/10 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-polkadot-pink/40 transition-colors"
+        />
+      </div>
+
+      {/* Track Filter */}
+      <div className="relative">
+        <Filter className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-500" />
+        <select
+          value={track}
+          onChange={(e) => onTrackChange(e.target.value)}
+          className="appearance-none pl-9 pr-8 py-2.5 rounded-xl bg-surface-2 border border-white/10 text-sm text-white focus:outline-none focus:border-polkadot-pink/40 transition-colors cursor-pointer"
+        >
+          <option value="all">All Tracks</option>
+          {Object.entries(TRACK_NAMES).map(([id, name]) => (
+            <option key={id} value={id}>{name}</option>
+          ))}
+        </select>
+        <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-500 pointer-events-none" />
+      </div>
+
+      {/* Status Filter */}
+      <div className="relative">
+        <select
+          value={status}
+          onChange={(e) => onStatusChange(e.target.value)}
+          className="appearance-none pl-4 pr-8 py-2.5 rounded-xl bg-surface-2 border border-white/10 text-sm text-white focus:outline-none focus:border-polkadot-pink/40 transition-colors cursor-pointer"
+        >
+          <option value="all">All Status</option>
+          <option value="Deciding">Deciding</option>
+          <option value="Confirming">Confirming</option>
+          <option value="Approved">Approved</option>
+          <option value="Rejected">Rejected</option>
+          <option value="Cancelled">Cancelled</option>
+          <option value="TimedOut">Timed Out</option>
+        </select>
+        <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-500 pointer-events-none" />
+      </div>
+
+      {/* Refresh */}
+      <button
+        onClick={onRefresh}
+        disabled={loading}
+        className="px-3 py-2.5 rounded-xl bg-surface-2 border border-white/10 text-gray-400 hover:text-white hover:border-polkadot-pink/40 transition-colors disabled:opacity-50"
+        title="Refresh proposals"
+      >
+        <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
+      </button>
+    </div>
+  );
+}
+
+// ─── Proposals Section ───
+
+function ProposalsSection() {
+  const [referenda, setReferenda] = useState<ReferendumListing[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [page, setPage] = useState(1);
+  const [total, setTotal] = useState(0);
+  const [hasMore, setHasMore] = useState(true);
+
+  // Filters
+  const [search, setSearch] = useState("");
+  const [trackFilter, setTrackFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = useState("all");
+
+  const LIMIT = 24;
+
+  const fetchReferenda = useCallback(async (pageNum: number, append = false) => {
+    setLoading(true);
+    setError(null);
+    try {
+      const params = new URLSearchParams({
+        page: String(pageNum),
+        limit: String(LIMIT),
+      });
+      if (trackFilter !== "all") params.set("track", trackFilter);
+      if (statusFilter !== "all") params.set("status", statusFilter);
+
+      const res = await fetch(`/api/referenda?${params}`);
+      if (!res.ok) throw new Error("Failed to fetch");
+      const data = await res.json();
+
+      const items: ReferendumListing[] = data.referenda || [];
+      if (append) {
+        setReferenda((prev) => [...prev, ...items]);
+      } else {
+        setReferenda(items);
+      }
+      setTotal(data.total || items.length);
+      setHasMore(items.length === LIMIT);
+    } catch {
+      setError("Failed to load proposals from Polkassembly. Using on-chain data only.");
+      if (!append) setReferenda([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [trackFilter, statusFilter]);
+
+  // Fetch on mount and when filters change
+  useEffect(() => {
+    setPage(1);
+    fetchReferenda(1);
+  }, [fetchReferenda]);
+
+  const loadMore = () => {
+    const nextPage = page + 1;
+    setPage(nextPage);
+    fetchReferenda(nextPage, true);
+  };
+
+  // On-chain analyzed count
   const { data: analysisCount } = useReadContract({
     address: ADDRESSES.aiOracle,
     abi: AI_ORACLE_ABI,
     functionName: "getAnalyzedReferendaCount",
   });
-
   const count = analysisCount ? Number(analysisCount) : 0;
 
-  // Read analyzed referendum IDs if any exist
-  const { data: analyzedIds } = useReadContract({
-    address: ADDRESSES.aiOracle,
-    abi: AI_ORACLE_ABI,
-    functionName: "getAnalyzedReferendaPaginated",
-    args: [BigInt(0), BigInt(Math.max(count, 1))],
-    query: { enabled: count > 0 },
-  });
+  // Client-side search filter (Polkassembly doesn't have text search)
+  const filtered = useMemo(() => {
+    if (!search.trim()) return referenda;
+    const q = search.toLowerCase();
+    return referenda.filter(
+      (r) =>
+        r.title.toLowerCase().includes(q) ||
+        String(r.referendumIndex).includes(q) ||
+        r.proposer.toLowerCase().includes(q)
+    );
+  }, [referenda, search]);
 
-  // Build the list: show on-chain analyzed proposals + known fallbacks
-  const onChainIds = analyzedIds
-    ? Array.from(analyzedIds).map(Number)
-    : [];
-  const allIds = Array.from(new Set([...onChainIds, ...KNOWN_REFERENDA.map((r) => r.id)]));
-  const titleMap = Object.fromEntries(KNOWN_REFERENDA.map((r) => [r.id, r.title]));
+  return (
+    <div id="proposals" className="mt-10">
+      <div className="flex items-center justify-between mb-4">
+        <div>
+          <h2 className="text-xl font-bold text-white">Polkadot OpenGov Proposals</h2>
+          <p className="text-sm text-gray-500 mt-1">
+            Browse, search, and analyze referenda from Polkadot governance
+          </p>
+        </div>
+        <div className="flex items-center gap-3">
+          {total > 0 && (
+            <span className="text-xs text-gray-500">
+              {total} referenda
+            </span>
+          )}
+          {count > 0 && (
+            <span className="flex items-center gap-1.5 text-xs text-emerald-400">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 live-dot" />
+              {count} AI analyzed
+            </span>
+          )}
+        </div>
+      </div>
 
+      <SearchFilterBar
+        search={search}
+        onSearchChange={setSearch}
+        track={trackFilter}
+        onTrackChange={setTrackFilter}
+        status={statusFilter}
+        onStatusChange={setStatusFilter}
+        onRefresh={() => { setPage(1); fetchReferenda(1); }}
+        loading={loading}
+      />
+
+      {error && (
+        <div className="mb-4 p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-xs text-amber-400">
+          {error}
+        </div>
+      )}
+
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+        {filtered.map((r) => (
+          <ProposalCard
+            key={r.referendumIndex}
+            referendumIndex={r.referendumIndex}
+            title={r.title}
+            track={r.track}
+            proposer={r.proposer}
+            state={r.state}
+            createdAt={r.createdAt}
+          />
+        ))}
+      </div>
+
+      {/* Loading state */}
+      {loading && referenda.length === 0 && (
+        <div className="glass-card p-12 text-center">
+          <Loader2 className="w-8 h-8 text-polkadot-pink mx-auto mb-4 animate-spin" />
+          <p className="text-sm text-gray-400">Loading proposals from Polkassembly...</p>
+        </div>
+      )}
+
+      {/* Empty state */}
+      {!loading && filtered.length === 0 && (
+        <div className="glass-card p-12 text-center">
+          <Brain className="w-12 h-12 text-gray-600 mx-auto mb-4" />
+          <h3 className="text-lg font-semibold text-gray-400 mb-2">
+            {search ? "No matching proposals" : "No proposals found"}
+          </h3>
+          <p className="text-sm text-gray-500">
+            {search
+              ? "Try adjusting your search or filters"
+              : "Check back later for new referenda"}
+          </p>
+        </div>
+      )}
+
+      {/* Load more */}
+      {hasMore && filtered.length > 0 && !loading && (
+        <div className="mt-8 text-center">
+          <button
+            onClick={loadMore}
+            className="px-6 py-2.5 rounded-xl bg-surface-2 border border-white/10 text-sm text-gray-300 hover:text-white hover:border-polkadot-pink/40 transition-colors inline-flex items-center gap-2"
+          >
+            {loading ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              <>Load More Proposals</>
+            )}
+          </button>
+        </div>
+      )}
+
+      {/* Loading more indicator */}
+      {loading && referenda.length > 0 && (
+        <div className="mt-6 text-center">
+          <Loader2 className="w-5 h-5 text-polkadot-pink mx-auto animate-spin" />
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Main Dashboard ───
+
+export default function Dashboard() {
   return (
     <div>
       <HeroSection />
       <StatsHero />
       <XCMBanner />
       <IdentityBanner />
-
-      {/* Proposals Grid */}
-      <div id="proposals" className="mt-10">
-        <div className="flex items-center justify-between mb-6">
-          <div>
-            <h2 className="text-xl font-bold text-white">Active Proposals</h2>
-            <p className="text-sm text-gray-500 mt-1">
-              AI-analyzed referenda from Polkadot OpenGov
-            </p>
-          </div>
-          {count > 0 && (
-            <span className="flex items-center gap-1.5 text-xs text-emerald-400">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 live-dot" />
-              {count} analyzed
-            </span>
-          )}
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-          {allIds.map((id) => (
-            <ProposalCard
-              key={id}
-              referendumIndex={id}
-              title={titleMap[id]}
-            />
-          ))}
-        </div>
-
-        {allIds.length === 0 && (
-          <div className="glass-card p-12 text-center">
-            <Brain className="w-12 h-12 text-gray-600 mx-auto mb-4" />
-            <h3 className="text-lg font-semibold text-gray-400 mb-2">
-              No proposals analyzed yet
-            </h3>
-            <p className="text-sm text-gray-500">
-              Run the AI backend to analyze active Polkadot referenda
-            </p>
-          </div>
-        )}
-      </div>
+      <ProposalsSection />
     </div>
   );
 }

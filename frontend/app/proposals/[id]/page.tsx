@@ -985,6 +985,91 @@ function XCMVerificationPanel({ referendumIndex }: { referendumIndex: number }) 
   );
 }
 
+// ─── Request Analysis Panel ───
+
+function RequestAnalysisPanel({ referendumIndex, onAnalyzed }: { referendumIndex: number; onAnalyzed: () => void }) {
+  const [analyzing, setAnalyzing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [result, setResult] = useState<{ recommendation: number; riskScore: number; confidence: number; summary: string } | null>(null);
+
+  const requestAnalysis = async () => {
+    setAnalyzing(true);
+    setError(null);
+    try {
+      const res = await fetch(`${API_BASE}/api/analyze/${referendumIndex}`, {
+        method: "POST",
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || "Analysis failed");
+      }
+      if (data.alreadyExisted) {
+        onAnalyzed();
+        return;
+      }
+      setResult(data);
+      // Wait a moment for on-chain data to propagate, then refresh
+      setTimeout(onAnalyzed, 3000);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to analyze");
+    } finally {
+      setAnalyzing(false);
+    }
+  };
+
+  if (result) {
+    return (
+      <div className="glass-card p-8 text-center">
+        <CheckCircle2 className="w-12 h-12 text-emerald-400 mx-auto mb-4" />
+        <h2 className="text-xl font-bold text-white mb-2">Analysis Complete</h2>
+        <p className="text-sm text-gray-400 mb-4">{result.summary}</p>
+        <div className="flex items-center justify-center gap-6 text-sm">
+          <span className={result.recommendation === 1 ? "text-emerald-400 font-bold" : result.recommendation === -1 ? "text-red-400 font-bold" : "text-gray-400 font-bold"}>
+            {result.recommendation === 1 ? "AYE" : result.recommendation === -1 ? "NAY" : "ABSTAIN"}
+          </span>
+          <span className="text-gray-500">Risk: {result.riskScore}/100</span>
+          <span className="text-gray-500">Confidence: {result.confidence}%</span>
+        </div>
+        <p className="text-xs text-gray-600 mt-4">Refreshing page to load on-chain data...</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="glass-card p-8 text-center">
+      <Brain className={`w-16 h-16 mx-auto mb-4 ${analyzing ? "text-polkadot-pink animate-pulse" : "text-gray-600"}`} />
+      <h2 className="text-xl font-bold text-gray-300 mb-2">
+        {analyzing ? "Analyzing Proposal..." : "No AI Analysis Yet"}
+      </h2>
+      <p className="text-sm text-gray-500 max-w-md mx-auto mb-6">
+        {analyzing
+          ? "Fetching proposal data, running GPT analysis, and publishing results on-chain. This takes about 15-30 seconds."
+          : "This proposal hasn\u2019t been analyzed by GovMind AI yet. Request an analysis to get risk scoring, recommendations, and deep intelligence."}
+      </p>
+      {error && (
+        <div className="mb-4 p-3 rounded-xl bg-red-500/10 border border-red-500/20 text-xs text-red-400">
+          {error}
+        </div>
+      )}
+      {!analyzing && (
+        <button
+          onClick={requestAnalysis}
+          className="btn-primary inline-flex items-center gap-2 px-6 py-3"
+        >
+          <Brain className="w-4 h-4" />
+          Request AI Analysis
+        </button>
+      )}
+      {analyzing && (
+        <div className="flex items-center justify-center gap-3">
+          <Loader2 className="w-5 h-5 text-polkadot-pink animate-spin" />
+          <span className="text-sm text-gray-400">Processing with GPT...</span>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Main Page ───
 
 export default function ProposalDetailPage() {
@@ -1125,16 +1210,7 @@ export default function ProposalDetailPage() {
       </div>
 
       {!hasOnChain ? (
-        <div className="glass-card p-12 text-center">
-          <Brain className="w-16 h-16 text-gray-600 mx-auto mb-4 animate-pulse" />
-          <h2 className="text-xl font-bold text-gray-400 mb-2">
-            Awaiting AI Analysis
-          </h2>
-          <p className="text-sm text-gray-500 max-w-md mx-auto">
-            This proposal hasn&apos;t been analyzed yet. Run the AI backend to
-            generate deep intelligence.
-          </p>
-        </div>
+        <RequestAnalysisPanel referendumIndex={referendumIndex} onAnalyzed={() => window.location.reload()} />
       ) : (
         <div className="space-y-6">
           {/* ── Row 1: Recommendations + Risk Gauge ── */}

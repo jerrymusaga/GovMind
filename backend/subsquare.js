@@ -54,7 +54,7 @@ export async function fetchActiveReferenda(limit = 5) {
   return FALLBACK_PROPOSALS.slice(0, limit);
 }
 
-async function fetchReferendum(referendumIndex) {
+export async function fetchReferendum(referendumIndex) {
   const url = `${POLKASSEMBLY_BASE}/posts/on-chain-post?postId=${referendumIndex}&proposalType=referendums_v2`;
   const res = await fetch(url);
 

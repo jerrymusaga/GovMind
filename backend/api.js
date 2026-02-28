@@ -1,4 +1,10 @@
 import http from "http";
+import { fetchReferendum, fetchHistoricalPrecedents } from "./subsquare.js";
+import { analyzeProposal } from "./analyzer.js";
+import {
+  publishAnalysis,
+  hasExistingAnalysis,
+} from "./contracts.js";
 
 /**
  * GovMind API Server
@@ -9,15 +15,19 @@ import http from "http";
  * community sentiment, voting momentum, historical context, and more.
  *
  * Endpoints:
- *   GET /api/analysis/:id      — Full deep analysis for a referendum
- *   GET /api/analyses           — All stored analyses (summary view)
- *   GET /api/proposal/:id       — Proposal metadata from Polkassembly
- *   GET /api/health             — Health check
+ *   GET  /api/analysis/:id      — Full deep analysis for a referendum
+ *   GET  /api/analyses           — All stored analyses (summary view)
+ *   GET  /api/proposal/:id       — Proposal metadata from Polkassembly
+ *   POST /api/analyze/:id        — Trigger on-demand AI analysis
+ *   GET  /api/health             — Health check
  */
 
 // In-memory stores (persists while backend is running)
 const analysisStore = new Map();
 const proposalStore = new Map();
+
+// Lock to prevent concurrent analyses of the same referendum
+const analysisInProgress = new Set();
 
 /**
  * Store a deep analysis result (called from index.js after GPT analysis)
@@ -53,13 +63,90 @@ export function storeProposalMeta(referendumIndex, proposal) {
 }
 
 /**
+ * Handle on-demand analysis request
+ */
+async function handleAnalyzeRequest(id, res) {
+  // Check if already in progress
+  if (analysisInProgress.has(id)) {
+    return json(res, { error: "Analysis already in progress", referendumIndex: id }, 409);
+  }
+
+  // Check if already analyzed on-chain
+  try {
+    const exists = await hasExistingAnalysis(id);
+    if (exists) {
+      const cached = analysisStore.get(id);
+      if (cached) {
+        return json(res, { ...cached, alreadyExisted: true });
+      }
+      return json(res, { error: "Already analyzed on-chain", referendumIndex: id, alreadyExisted: true }, 200);
+    }
+  } catch (err) {
+    console.warn(`  Could not check on-chain status: ${err.message}`);
+  }
+
+  analysisInProgress.add(id);
+  console.log(`\n[ON-DEMAND] Analyzing referendum #${id}...`);
+
+  try {
+    // 1. Fetch proposal from Polkassembly
+    console.log(`  Fetching proposal #${id} from Polkassembly...`);
+    const proposal = await fetchReferendum(id);
+    if (!proposal) {
+      return json(res, { error: "Proposal not found on Polkassembly" }, 404);
+    }
+
+    // 2. Fetch historical precedents
+    console.log("  Fetching historical precedents...");
+    const historicalData = await fetchHistoricalPrecedents(proposal, 3);
+
+    // 3. Run GPT analysis
+    console.log("  Running GPT analysis...");
+    const analysis = await analyzeProposal(proposal, historicalData);
+    console.log(`  Result: ${analysis.recommendation === 1 ? "AYE" : analysis.recommendation === -1 ? "NAY" : "ABSTAIN"} | Risk: ${analysis.riskScore}/100`);
+
+    // 4. Store locally
+    storeAnalysis(id, analysis);
+    storeProposalMeta(id, proposal);
+
+    // 5. Publish on-chain
+    console.log("  Publishing to AIOracle on-chain...");
+    const receipt = await publishAnalysis(id, proposal.track, analysis);
+
+    if (receipt) {
+      console.log(`  Published! TX: ${receipt.hash}`);
+    } else {
+      console.log("  Skipped on-chain publish (may already exist)");
+    }
+
+    return json(res, {
+      ...analysis,
+      referendumIndex: id,
+      proposal: {
+        title: proposal.title,
+        track: proposal.track,
+        trackName: proposal.trackName,
+        state: proposal.state,
+        proposer: proposal.proposer,
+      },
+      publishedOnChain: !!receipt,
+    });
+  } catch (err) {
+    console.error(`  Analysis failed: ${err.message}`);
+    return json(res, { error: `Analysis failed: ${err.message}` }, 500);
+  } finally {
+    analysisInProgress.delete(id);
+  }
+}
+
+/**
  * Start the HTTP API server (no Express dependency — uses Node http)
  */
 export function startApiServer(port = 3001) {
-  const server = http.createServer((req, res) => {
+  const server = http.createServer(async (req, res) => {
     // CORS headers for frontend
     res.setHeader("Access-Control-Allow-Origin", "*");
-    res.setHeader("Access-Control-Allow-Methods", "GET, OPTIONS");
+    res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
     res.setHeader("Access-Control-Allow-Headers", "Content-Type");
 
     if (req.method === "OPTIONS") {
@@ -78,8 +165,16 @@ export function startApiServer(port = 3001) {
           status: "ok",
           analyses: analysisStore.size,
           proposals: proposalStore.size,
+          inProgress: [...analysisInProgress],
           uptime: process.uptime(),
         });
+      }
+
+      // POST /api/analyze/:id — On-demand AI analysis
+      const analyzeMatch = path.match(/^\/api\/analyze\/(\d+)$/);
+      if (analyzeMatch && req.method === "POST") {
+        const id = Number(analyzeMatch[1]);
+        return await handleAnalyzeRequest(id, res);
       }
 
       // GET /api/analysis/:id
@@ -140,10 +235,11 @@ export function startApiServer(port = 3001) {
 
   server.listen(port, () => {
     console.log(`\nGovMind API server running on http://localhost:${port}`);
-    console.log(`  GET /api/analyses         — All analyses`);
-    console.log(`  GET /api/analysis/:id     — Deep analysis for referendum`);
-    console.log(`  GET /api/proposal/:id     — Proposal metadata`);
-    console.log(`  GET /api/health           — Health check\n`);
+    console.log(`  GET  /api/analyses         — All analyses`);
+    console.log(`  GET  /api/analysis/:id     — Deep analysis for referendum`);
+    console.log(`  POST /api/analyze/:id      — Trigger on-demand analysis`);
+    console.log(`  GET  /api/proposal/:id     — Proposal metadata`);
+    console.log(`  GET  /api/health           — Health check\n`);
   });
 
   return server;
