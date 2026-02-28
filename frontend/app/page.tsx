@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useAccount, useReadContract } from "wagmi";
 import { ConnectButton } from "@rainbow-me/rainbowkit";
 import {
@@ -334,21 +334,32 @@ function ProposalsSection() {
   const [statusFilter, setStatusFilter] = useState("all");
 
   const LIMIT = 24;
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const debounceRef = useRef<NodeJS.Timeout | null>(null);
 
   // Votable states: proposals users can still vote on
   const VOTABLE_STATES = new Set(["Deciding", "Confirming"]);
+
+  // Debounce search input (400ms)
+  useEffect(() => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => {
+      setDebouncedSearch(search);
+    }, 400);
+    return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
+  }, [search]);
 
   const fetchReferenda = useCallback(async (pageNum: number, append = false) => {
     setLoading(true);
     setError(null);
     try {
-      // Fetch more results when filtering client-side to ensure enough matches
       const fetchLimit = statusFilter !== "all" ? LIMIT * 3 : LIMIT;
       const params = new URLSearchParams({
         page: String(pageNum),
         limit: String(fetchLimit),
       });
       if (trackFilter !== "all") params.set("track", trackFilter);
+      if (debouncedSearch.trim()) params.set("search", debouncedSearch.trim());
 
       const res = await fetch(`/api/referenda?${params}`);
       if (!res.ok) throw new Error("Failed to fetch");
@@ -372,16 +383,17 @@ function ProposalsSection() {
         setReferenda(items);
       }
       setTotal(data.total || items.length);
-      setHasMore(items.length > 0 && (data.referenda || []).length === fetchLimit);
+      // Hide "load more" for direct ID lookups or when search returned filtered results
+      setHasMore(!data.directLookup && items.length > 0 && (data.referenda || []).length === fetchLimit);
     } catch {
       setError("Failed to load proposals from Polkassembly. Using on-chain data only.");
       if (!append) setReferenda([]);
     } finally {
       setLoading(false);
     }
-  }, [trackFilter, statusFilter]);
+  }, [trackFilter, statusFilter, debouncedSearch]);
 
-  // Fetch on mount and when filters change
+  // Fetch on mount and when filters/search change
   useEffect(() => {
     setPage(1);
     fetchReferenda(1);
@@ -401,17 +413,7 @@ function ProposalsSection() {
   });
   const count = analysisCount ? Number(analysisCount) : 0;
 
-  // Client-side search filter (Polkassembly doesn't have text search)
-  const filtered = useMemo(() => {
-    if (!search.trim()) return referenda;
-    const q = search.toLowerCase();
-    return referenda.filter(
-      (r) =>
-        r.title.toLowerCase().includes(q) ||
-        String(r.referendumIndex).includes(q) ||
-        r.proposer.toLowerCase().includes(q)
-    );
-  }, [referenda, search]);
+  const filtered = referenda;
 
   return (
     <div id="proposals" className="mt-10">

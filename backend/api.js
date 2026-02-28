@@ -240,7 +240,28 @@ export function startApiServer(port = 3001) {
       const analysisMatch = path.match(/^\/api\/analysis\/(\d+)$/);
       if (analysisMatch) {
         const id = Number(analysisMatch[1]);
-        const analysis = analysisStore.get(id);
+        let analysis = analysisStore.get(id);
+
+        // If not in memory but exists on-chain, re-generate deep analysis
+        if (!analysis) {
+          try {
+            const exists = await hasExistingAnalysis(id);
+            if (exists) {
+              console.log(`[CACHE MISS] Regenerating deep analysis for #${id}...`);
+              const proposal = await fetchReferendum(id);
+              if (proposal) {
+                const historicalData = await fetchHistoricalPrecedents(proposal, 3);
+                const freshAnalysis = await analyzeProposal(proposal, historicalData);
+                storeAnalysis(id, freshAnalysis);
+                storeProposalMeta(id, proposal);
+                analysis = analysisStore.get(id);
+              }
+            }
+          } catch (err) {
+            console.warn(`  Could not regenerate analysis: ${err.message}`);
+          }
+        }
+
         if (!analysis) {
           return json(res, { error: "Analysis not found", referendumIndex: id }, 404);
         }
