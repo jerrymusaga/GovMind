@@ -502,9 +502,8 @@ function RiskGauge({ score }: { score: number }) {
 }
 
 // States where voting is no longer possible
-const ENDED_STATES = new Set([
-  "Cancelled", "Killed", "TimedOut", "Approved", "Rejected", "Executed", "Confirmed",
-]);
+// Only these states allow voting — everything else is either pre-voting or ended
+const VOTABLE_STATES = new Set(["Deciding", "Confirming"]);
 
 interface VoteParams {
   aye: boolean;
@@ -566,19 +565,19 @@ function VotePanel({
 
   if (!isConnected) return null;
 
-  // Proposal has ended — voting no longer possible
-  const isEnded = proposalState && ENDED_STATES.has(proposalState);
-  if (isEnded) {
+  // Only allow voting when proposal is in Deciding or Confirming
+  const canVote = proposalState && VOTABLE_STATES.has(proposalState);
+  if (proposalState && !canVote) {
     return (
       <div className="glass-card p-5">
         <div className="flex items-center gap-3 text-gray-400">
           <XCircle className="w-5 h-5" />
           <div>
             <span className="text-sm font-semibold block">
-              Voting Closed
+              Voting Not Available
             </span>
             <span className="text-xs text-gray-500">
-              This proposal is {proposalState.toLowerCase()} — votes can no longer be cast
+              This proposal is {proposalState.toLowerCase()} — voting is only available during Deciding and Confirming stages
             </span>
           </div>
         </div>
