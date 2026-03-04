@@ -990,7 +990,7 @@ export default function ProposalDetailPage() {
 
   const chatIdentity = hasIdentity && prefWeights && identityData
     ? {
-        axes: Array.from(prefWeights as number[]).map(Number),
+        axes: (prefWeights as readonly number[]).map(Number),
         riskTolerance: Number((identityData as any)[1]),
       }
     : null;
