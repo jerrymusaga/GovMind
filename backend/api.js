@@ -1,4 +1,5 @@
 import http from "http";
+import OpenAI from "openai";
 import { fetchReferendum, fetchHistoricalPrecedents } from "./subsquare.js";
 import { analyzeProposal } from "./analyzer.js";
 import {
@@ -8,6 +9,14 @@ import {
   getOnChainAnalysis,
 } from "./contracts.js";
 import { detectChanges, saveSnapshot, cooldownExpired } from "./detector.js";
+
+let _chatOpenAI;
+function getChatOpenAI() {
+  if (!_chatOpenAI) {
+    _chatOpenAI = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+  }
+  return _chatOpenAI;
+}
 
 /**
  * GovMind API Server
@@ -199,6 +208,151 @@ async function handleAnalyzeRequest(id, res) {
 }
 
 /**
+ * Handle AI agent chat request
+ */
+async function handleChatRequest(id, req, res) {
+  // Parse request body
+  const body = await new Promise((resolve, reject) => {
+    let data = "";
+    req.on("data", (chunk) => (data += chunk));
+    req.on("end", () => {
+      try { resolve(JSON.parse(data)); } catch { reject(new Error("Invalid JSON")); }
+    });
+    req.on("error", reject);
+  });
+
+  const { message, history = [], userIdentity } = body;
+  if (!message || typeof message !== "string") {
+    return json(res, { error: "message is required" }, 400);
+  }
+
+  // Build context from stored data
+  const analysis = analysisStore.get(id);
+  const proposal = proposalStore.get(id);
+
+  // If we don't have proposal data, try fetching it
+  let proposalData = proposal;
+  if (!proposalData) {
+    try {
+      proposalData = await fetchReferendum(id);
+    } catch {}
+  }
+
+  // Build the system prompt with full context
+  let systemPrompt = `You are GovMind AI Agent — a conversational governance advisor for Polkadot OpenGov. You help users understand proposals and make informed voting decisions.
+
+RULES:
+- Be concise (2-4 sentences per response unless the user asks for detail)
+- Reference specific data points from the proposal context below
+- If the user has a governance identity, tailor your advice to their preferences
+- Be opinionated — give clear Aye/Nay guidance when asked, with reasoning
+- Use plain language, avoid jargon unless the user is clearly technical
+- If you don't have enough data to answer, say so honestly
+
+=== PROPOSAL CONTEXT ===
+Referendum #${id}`;
+
+  if (proposalData) {
+    systemPrompt += `
+Title: ${proposalData.title || "Unknown"}
+Track: ${proposalData.trackName || proposalData.track || "Unknown"}
+Status: ${proposalData.state || "Unknown"}
+Proposer: ${proposalData.proposer || "Unknown"}`;
+
+    if (proposalData.tally) {
+      systemPrompt += `
+Voting: ${proposalData.tally.ayePercent || 0}% Aye | Ayes: ${proposalData.tally.ayes?.toLocaleString() || 0} DOT | Nays: ${proposalData.tally.nays?.toLocaleString() || 0} DOT`;
+    }
+    if (proposalData.spendingInfo?.totalAmountDOT > 0) {
+      systemPrompt += `
+Treasury Request: ${proposalData.spendingInfo.totalAmountDOT.toLocaleString()} DOT (~$${(proposalData.spendingInfo.totalAmountDOT * 5).toLocaleString()} USD)`;
+    }
+    if (proposalData.commentsCount) {
+      systemPrompt += `
+Community: ${proposalData.commentsCount} comments`;
+    }
+  }
+
+  if (analysis) {
+    const rec = analysis.recommendation === 1 ? "Aye" : analysis.recommendation === -1 ? "Nay" : "Abstain";
+    systemPrompt += `
+
+=== AI ANALYSIS ===
+Recommendation: ${rec} (Confidence: ${analysis.confidence}%)
+Risk Score: ${analysis.riskScore}/100
+Summary: ${analysis.summary || "N/A"}`;
+
+    if (analysis.deepAnalysis) {
+      const deep = analysis.deepAnalysis;
+      systemPrompt += `
+Verdict: ${deep.verdict || "N/A"}`;
+      if (deep.riskFactors?.length > 0) {
+        systemPrompt += `
+Risk Factors: ${deep.riskFactors.map(r => `${r.factor} (${r.severity})`).join(", ")}`;
+      }
+      if (deep.communitySentiment) {
+        systemPrompt += `
+Community Sentiment: ${deep.communitySentiment.overallSignal} (score: ${deep.communitySentiment.weightedScore})`;
+      }
+      if (deep.treasuryBreakdown?.valueAssessment) {
+        systemPrompt += `
+Treasury Assessment: ${deep.treasuryBreakdown.valueAssessment}`;
+      }
+      if (deep.strengthsAndWeaknesses) {
+        systemPrompt += `
+Strengths: ${deep.strengthsAndWeaknesses.strengths?.join("; ") || "N/A"}
+Weaknesses: ${deep.strengthsAndWeaknesses.weaknesses?.join("; ") || "N/A"}`;
+      }
+    }
+  }
+
+  if (userIdentity) {
+    const axisLabels = [
+      "Treasury Conservative ↔ Growth",
+      "Technical Progressive ↔ Conservative",
+      "Community ↔ Infrastructure",
+    ];
+    systemPrompt += `
+
+=== USER GOVERNANCE IDENTITY ===
+This user has set their governance preferences. Tailor your advice accordingly:`;
+    if (userIdentity.axes) {
+      for (let i = 0; i < Math.min(userIdentity.axes.length, 3); i++) {
+        systemPrompt += `\n${axisLabels[i]}: ${userIdentity.axes[i]}/100`;
+      }
+    }
+    if (userIdentity.riskTolerance != null) {
+      systemPrompt += `\nRisk Tolerance: ${userIdentity.riskTolerance}/100`;
+    }
+  }
+
+  // Trim history to last 10 messages
+  const trimmedHistory = history.slice(-10).map((m) => ({
+    role: m.role === "user" ? "user" : "assistant",
+    content: String(m.content),
+  }));
+
+  try {
+    const response = await getChatOpenAI().chat.completions.create({
+      model: "gpt-4o-mini",
+      temperature: 0.5,
+      max_tokens: 500,
+      messages: [
+        { role: "system", content: systemPrompt },
+        ...trimmedHistory,
+        { role: "user", content: message },
+      ],
+    });
+
+    const reply = response.choices[0].message.content.trim();
+    return json(res, { reply });
+  } catch (err) {
+    console.error(`  Chat error: ${err.message}`);
+    return json(res, { error: "Chat failed" }, 500);
+  }
+}
+
+/**
  * Start the HTTP API server (no Express dependency — uses Node http)
  */
 export function startApiServer(port = 3001) {
@@ -234,6 +388,13 @@ export function startApiServer(port = 3001) {
       if (analyzeMatch && req.method === "POST") {
         const id = Number(analyzeMatch[1]);
         return await handleAnalyzeRequest(id, res);
+      }
+
+      // POST /api/chat/:id — AI agent chat
+      const chatMatch = path.match(/^\/api\/chat\/(\d+)$/);
+      if (chatMatch && req.method === "POST") {
+        const id = Number(chatMatch[1]);
+        return await handleChatRequest(id, req, res);
       }
 
       // GET /api/analysis/:id
@@ -318,6 +479,7 @@ export function startApiServer(port = 3001) {
     console.log(`  GET  /api/analyses         — All analyses`);
     console.log(`  GET  /api/analysis/:id     — Deep analysis for referendum`);
     console.log(`  POST /api/analyze/:id      — Trigger on-demand analysis`);
+    console.log(`  POST /api/chat/:id         — AI agent chat`);
     console.log(`  GET  /api/proposal/:id     — Proposal metadata`);
     console.log(`  GET  /api/health           — Health check\n`);
   });

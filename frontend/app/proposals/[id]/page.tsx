@@ -48,6 +48,7 @@ import {
   Check,
   XCircle,
 } from "lucide-react";
+import ChatAgent from "@/components/ChatAgent";
 import Link from "next/link";
 import clsx from "clsx";
 
@@ -970,6 +971,30 @@ export default function ProposalDetailPage() {
     query: { enabled: isConnected && !!address },
   });
 
+  // Read identity data for AI agent chat
+  const { data: prefWeights } = useReadContract({
+    address: ADDRESSES.identityVault,
+    abi: IDENTITY_VAULT_ABI,
+    functionName: "getPreferenceWeights",
+    args: address ? [address] : undefined,
+    query: { enabled: isConnected && !!address && !!hasIdentity },
+  });
+
+  const { data: identityData } = useReadContract({
+    address: ADDRESSES.identityVault,
+    abi: IDENTITY_VAULT_ABI,
+    functionName: "identities",
+    args: address ? [address] : undefined,
+    query: { enabled: isConnected && !!address && !!hasIdentity },
+  });
+
+  const chatIdentity = hasIdentity && prefWeights && identityData
+    ? {
+        axes: Array.from(prefWeights as number[]).map(Number),
+        riskTolerance: Number((identityData as any)[1]),
+      }
+    : null;
+
   // Proposal metadata from Polkassembly (for state / voting guard)
   const [proposalState, setProposalState] = useState<string | null>(null);
 
@@ -1550,6 +1575,14 @@ export default function ProposalDetailPage() {
           )}
         </div>
       )}
+
+      {/* AI Agent Chat */}
+      <ChatAgent
+        referendumIndex={referendumIndex}
+        proposalTitle={title}
+        userIdentity={chatIdentity}
+        analysisExists={hasOnChain}
+      />
     </div>
   );
 }
