@@ -1,6 +1,6 @@
 {
-  "/api/referenda/route": "app/api/referenda/route.js",
+  "/page": "app/page.js",
   "/proposals/[id]/page": "app/proposals/[id]/page.js",
-  "/api/referenda/[id]/route": "app/api/referenda/[id]/route.js",
-  "/page": "app/page.js"
+  "/api/referenda/route": "app/api/referenda/route.js",
+  "/api/referenda/[id]/route": "app/api/referenda/[id]/route.js"
 }
