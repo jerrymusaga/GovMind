@@ -515,7 +515,7 @@ interface VoteParams {
   amount: string;
 }
 
-function CrossVMFlowSection() {
+function CrossVMFlowSection({ voteFlowState }: { voteFlowState: "idle" | "pending" | "confirming" | "confirmed" }) {
   const { data: pvmCodecEnabled } = useReadContract({
     address: ADDRESSES.xcmRelay,
     abi: PVM_STATUS_ABI,
@@ -528,10 +528,75 @@ function CrossVMFlowSection() {
     functionName: "usePVMScorer",
   });
 
+  // Animated step progression during vote
+  const [activeStep, setActiveStep] = useState(0);
+
+  useEffect(() => {
+    if (voteFlowState === "idle") { setActiveStep(0); return; }
+    if (voteFlowState === "confirmed") { setActiveStep(5); return; }
+
+    // Animate steps 1→4 during pending/confirming
+    setActiveStep(1);
+    const timers = [
+      setTimeout(() => setActiveStep(2), 800),
+      setTimeout(() => setActiveStep(3), 1600),
+      setTimeout(() => setActiveStep(4), 2400),
+    ];
+    return () => timers.forEach(clearTimeout);
+  }, [voteFlowState]);
+
+  const isAnimating = voteFlowState !== "idle";
+  const allDone = voteFlowState === "confirmed";
+
+  const steps = [
+    { num: 1, label: "GovMindCore", sub: "EVM \u00B7 Solidity", detail: "", color: "polkadot-pink", isPvm: false },
+    { num: 2, label: "AlignmentScorer", sub: "PVM \u00B7 Rust", detail: "690 bytes", color: "cyan", isPvm: true, enabled: pvmScorerEnabled },
+    { num: 3, label: "ScaleCodecPVM", sub: "PVM \u00B7 Rust", detail: "1,523 bytes", color: "cyan", isPvm: true, enabled: pvmCodecEnabled },
+    { num: 4, label: "XCM Precompile", sub: "0x0A0000", detail: "Transact", color: "polkadot-purple", isPvm: false },
+    { num: 5, label: "Relay Chain", sub: "convictionVoting", detail: "Vote Counted", color: "emerald", isPvm: false },
+  ];
+
+  function stepCircleClass(stepNum: number) {
+    if (allDone) return "bg-emerald-500/30 ring-2 ring-emerald-400/50";
+    if (isAnimating && activeStep === stepNum) return "bg-cyan-500/30 ring-2 ring-cyan-400/50 animate-pulse";
+    if (isAnimating && activeStep > stepNum) return "bg-emerald-500/20";
+    return `bg-${steps[stepNum - 1].color}-500/20`;
+  }
+
+  function stepNumClass(stepNum: number) {
+    if (allDone) return "text-emerald-400";
+    if (isAnimating && activeStep === stepNum) return "text-cyan-300";
+    if (isAnimating && activeStep > stepNum) return "text-emerald-400";
+    const c = steps[stepNum - 1].color;
+    return c === "polkadot-pink" ? "text-polkadot-pink" : c === "polkadot-purple" ? "text-polkadot-purple" : `text-${c}-400`;
+  }
+
+  function stepCardClass(stepNum: number, isPvm: boolean, enabled?: boolean) {
+    if (allDone) return "bg-emerald-500/10 border border-emerald-500/30";
+    if (isAnimating && activeStep === stepNum) return "bg-cyan-500/15 border border-cyan-400/40 shadow-lg shadow-cyan-500/10";
+    if (isAnimating && activeStep > stepNum) return "bg-emerald-500/5 border border-emerald-500/20";
+    if (isPvm && enabled) return "bg-cyan-500/10 border border-cyan-500/20";
+    return "bg-surface-2 border border-white/10";
+  }
+
+  function arrowClass(afterStep: number) {
+    if (allDone) return "text-emerald-400";
+    if (isAnimating && activeStep > afterStep) return "text-emerald-400";
+    if (isAnimating && activeStep === afterStep) return "text-cyan-400 animate-pulse";
+    return afterStep <= 2 ? "text-cyan-400/50" : "text-polkadot-purple/50";
+  }
+
   return (
-    <div className="glass-card p-6 border border-cyan-500/20 bg-gradient-to-r from-cyan-500/5 via-surface-1 to-polkadot-purple/5">
+    <div className={clsx(
+      "glass-card p-6 transition-all duration-500",
+      allDone
+        ? "border border-emerald-500/30 bg-gradient-to-r from-emerald-500/5 via-surface-1 to-emerald-500/5"
+        : isAnimating
+          ? "border border-cyan-400/30 bg-gradient-to-r from-cyan-500/5 via-surface-1 to-polkadot-purple/5"
+          : "border border-cyan-500/20 bg-gradient-to-r from-cyan-500/5 via-surface-1 to-polkadot-purple/5"
+    )}>
       <div className="flex items-center gap-2 mb-4">
-        <Cpu className="w-5 h-5 text-cyan-400" />
+        <Cpu className={clsx("w-5 h-5 transition-colors", allDone ? "text-emerald-400" : isAnimating ? "text-cyan-300 animate-pulse" : "text-cyan-400")} />
         <h3 className="text-sm font-semibold text-white">
           Cross-VM Vote Execution Flow
         </h3>
@@ -541,99 +606,60 @@ function CrossVMFlowSection() {
         <span className="px-2 py-0.5 text-[10px] font-bold uppercase bg-polkadot-pink/15 text-polkadot-pink rounded">
           XCM V5
         </span>
+        {isAnimating && !allDone && (
+          <span className="ml-auto flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-cyan-500/10 border border-cyan-500/20 text-[10px] text-cyan-400 font-medium">
+            <Loader2 className="w-3 h-3 animate-spin" />
+            Processing vote...
+          </span>
+        )}
+        {allDone && (
+          <span className="ml-auto flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-[10px] text-emerald-400 font-medium">
+            <CheckCircle2 className="w-3 h-3" />
+            Vote executed
+          </span>
+        )}
       </div>
 
       {/* Visual pipeline */}
       <div className="flex items-stretch gap-0 overflow-x-auto pb-2">
-        {/* Step 1: User Vote */}
-        <div className="flex flex-col items-center min-w-[100px]">
-          <div className="w-8 h-8 rounded-full bg-polkadot-pink/20 flex items-center justify-center mb-2">
-            <span className="text-xs font-bold text-polkadot-pink">1</span>
+        {steps.map((step, i) => (
+          <div key={step.num} className="contents">
+            {i > 0 && (
+              <div className="flex items-center px-1">
+                {step.isPvm || steps[i - 1].isPvm ? (
+                  <ArrowRightLeft className={clsx("w-3.5 h-3.5 shrink-0 transition-colors duration-300", arrowClass(step.num - 1))} />
+                ) : (
+                  <Globe className={clsx("w-3.5 h-3.5 shrink-0 transition-colors duration-300", arrowClass(step.num - 1))} />
+                )}
+              </div>
+            )}
+            <div className={clsx("flex flex-col items-center min-w-[100px] transition-all duration-500", isAnimating && activeStep === step.num && "scale-105")}>
+              <div className={clsx("w-8 h-8 rounded-full flex items-center justify-center mb-2 transition-all duration-300", stepCircleClass(step.num))}>
+                {allDone ? (
+                  <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                ) : isAnimating && activeStep === step.num ? (
+                  <Loader2 className="w-4 h-4 text-cyan-300 animate-spin" />
+                ) : (
+                  <span className={clsx("text-xs font-bold transition-colors duration-300", stepNumClass(step.num))}>{step.num}</span>
+                )}
+              </div>
+              <div className={clsx("px-3 py-2 rounded-lg text-center flex-1 w-full transition-all duration-300", stepCardClass(step.num, step.isPvm, step.enabled))}>
+                <span className="text-[10px] text-gray-300 font-medium block">{step.label}</span>
+                <span className={clsx("text-[9px] block", step.isPvm ? "text-cyan-400" : step.color === "emerald" ? "text-emerald-400" : step.color === "polkadot-purple" ? "text-polkadot-purple" : "text-gray-500")}>{step.sub}</span>
+                {step.detail && <span className="text-[8px] text-gray-600">{step.detail}</span>}
+              </div>
+            </div>
           </div>
-          <div className="px-3 py-2 rounded-lg bg-surface-2 border border-white/10 text-center flex-1 w-full">
-            <span className="text-[10px] text-gray-300 font-medium block">GovMindCore</span>
-            <span className="text-[9px] text-gray-500">EVM &middot; Solidity</span>
-          </div>
-        </div>
-
-        <div className="flex items-center px-1">
-          <ArrowRightLeft className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
-        </div>
-
-        {/* Step 2: PVM Alignment */}
-        <div className="flex flex-col items-center min-w-[110px]">
-          <div className="w-8 h-8 rounded-full bg-cyan-500/20 flex items-center justify-center mb-2">
-            <span className="text-xs font-bold text-cyan-400">2</span>
-          </div>
-          <div className={`px-3 py-2 rounded-lg text-center flex-1 w-full ${
-            pvmScorerEnabled
-              ? "bg-cyan-500/10 border border-cyan-500/20"
-              : "bg-surface-2 border border-white/10"
-          }`}>
-            <span className="text-[10px] text-gray-300 font-medium block">AlignmentScorer</span>
-            <span className="text-[9px] text-cyan-400 block">PVM &middot; Rust</span>
-            <span className="text-[8px] text-gray-600">690 bytes</span>
-          </div>
-        </div>
-
-        <div className="flex items-center px-1">
-          <ArrowRightLeft className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
-        </div>
-
-        {/* Step 3: SCALE Encode */}
-        <div className="flex flex-col items-center min-w-[110px]">
-          <div className="w-8 h-8 rounded-full bg-cyan-500/20 flex items-center justify-center mb-2">
-            <span className="text-xs font-bold text-cyan-400">3</span>
-          </div>
-          <div className={`px-3 py-2 rounded-lg text-center flex-1 w-full ${
-            pvmCodecEnabled
-              ? "bg-cyan-500/10 border border-cyan-500/20"
-              : "bg-surface-2 border border-white/10"
-          }`}>
-            <span className="text-[10px] text-gray-300 font-medium block">ScaleCodecPVM</span>
-            <span className="text-[9px] text-cyan-400 block">PVM &middot; Rust</span>
-            <span className="text-[8px] text-gray-600">1,523 bytes</span>
-          </div>
-        </div>
-
-        <div className="flex items-center px-1">
-          <Globe className="w-3.5 h-3.5 text-polkadot-purple shrink-0" />
-        </div>
-
-        {/* Step 4: XCM Relay */}
-        <div className="flex flex-col items-center min-w-[110px]">
-          <div className="w-8 h-8 rounded-full bg-polkadot-purple/20 flex items-center justify-center mb-2">
-            <span className="text-xs font-bold text-polkadot-purple">4</span>
-          </div>
-          <div className="px-3 py-2 rounded-lg bg-surface-2 border border-white/10 text-center flex-1 w-full">
-            <span className="text-[10px] text-gray-300 font-medium block">XCM Precompile</span>
-            <span className="text-[9px] text-polkadot-purple block">0x0A0000</span>
-            <span className="text-[8px] text-gray-600">Transact</span>
-          </div>
-        </div>
-
-        <div className="flex items-center px-1">
-          <ArrowRightLeft className="w-3.5 h-3.5 text-polkadot-purple shrink-0" />
-        </div>
-
-        {/* Step 5: Relay Chain */}
-        <div className="flex flex-col items-center min-w-[110px]">
-          <div className="w-8 h-8 rounded-full bg-emerald-500/20 flex items-center justify-center mb-2">
-            <span className="text-xs font-bold text-emerald-400">5</span>
-          </div>
-          <div className="px-3 py-2 rounded-lg bg-emerald-500/5 border border-emerald-500/20 text-center flex-1 w-full">
-            <span className="text-[10px] text-gray-300 font-medium block">Relay Chain</span>
-            <span className="text-[9px] text-emerald-400 block">convictionVoting</span>
-            <span className="text-[8px] text-gray-600">Vote Counted</span>
-          </div>
-        </div>
+        ))}
       </div>
 
-      {/* Description */}
-      <p className="text-[11px] text-gray-500 mt-3">
-        Your vote flows through two VMs on the same chain: EVM Solidity orchestrates the vote,
-        Rust PVM contracts handle SCALE encoding and alignment scoring on RISC-V,
-        then XCM V5 relays to the Relay Chain for execution.
+      {/* Status text */}
+      <p className={clsx("text-[11px] mt-3 transition-colors duration-300", allDone ? "text-emerald-400/70" : "text-gray-500")}>
+        {allDone
+          ? "Vote confirmed on-chain. Traversed EVM \u2192 PVM (Rust RISC-V) \u2192 XCM V5 \u2192 Relay Chain."
+          : isAnimating
+            ? "Your vote is flowing through the cross-VM pipeline..."
+            : "Your vote flows through two VMs on the same chain: EVM Solidity orchestrates the vote, Rust PVM contracts handle SCALE encoding and alignment scoring on RISC-V, then XCM V5 relays to the Relay Chain for execution."}
       </p>
     </div>
   );
@@ -643,10 +669,12 @@ function VotePanel({
   referendumIndex,
   proposalState,
   onVoteSuccess,
+  onFlowStateChange,
 }: {
   referendumIndex: number;
   proposalState: string | null;
   onVoteSuccess?: (params: VoteParams) => void;
+  onFlowStateChange?: (state: "idle" | "pending" | "confirming" | "confirmed") => void;
 }) {
   const { address, isConnected } = useAccount();
   const [conviction, setConviction] = useState(1);
@@ -668,6 +696,13 @@ function VotePanel({
   } = useWriteContract();
   const { isLoading: isConfirming, isSuccess } =
     useWaitForTransactionReceipt({ hash: voteTxHash });
+
+  // Drive cross-VM flow animation
+  useEffect(() => {
+    if (isSuccess) onFlowStateChange?.("confirmed");
+    else if (isConfirming) onFlowStateChange?.("confirming");
+    else if (isPending) onFlowStateChange?.("pending");
+  }, [isPending, isConfirming, isSuccess]);
 
   // Notify parent when vote is confirmed
   useEffect(() => {
@@ -1125,8 +1160,9 @@ export default function ProposalDetailPage() {
   // Proposal metadata from Polkassembly (for state / voting guard)
   const [proposalState, setProposalState] = useState<string | null>(null);
 
-  // Track user's vote for XCM verification panel
+  // Track user's vote for XCM verification panel + cross-VM animation
   const [voteParams, setVoteParams] = useState<VoteParams | null>(null);
+  const [voteFlowState, setVoteFlowState] = useState<"idle" | "pending" | "confirming" | "confirmed">("idle");
 
   // Rich analysis from API
   const [deepData, setDeepData] = useState<ApiAnalysis | null>(null);
@@ -1623,7 +1659,7 @@ export default function ProposalDetailPage() {
 
           {/* ── Row 4: Vote + GovMind Stats ── */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <VotePanel referendumIndex={referendumIndex} proposalState={proposalState} onVoteSuccess={setVoteParams} />
+            <VotePanel referendumIndex={referendumIndex} proposalState={proposalState} onVoteSuccess={setVoteParams} onFlowStateChange={setVoteFlowState} />
             <div className="glass-card p-5">
               <SectionHeader
                 icon={BarChart3}
@@ -1635,7 +1671,7 @@ export default function ProposalDetailPage() {
           </div>
 
           {/* ── Row 5: Cross-VM + XCM Architecture ── */}
-          <CrossVMFlowSection />
+          <CrossVMFlowSection voteFlowState={voteFlowState} />
 
           {/* ── Row 6: Verify XCM Encoding (only after user votes) ── */}
           {voteParams && (
