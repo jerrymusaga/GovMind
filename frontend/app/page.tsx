@@ -8,6 +8,7 @@ import {
   AI_ORACLE_ABI,
   IDENTITY_VAULT_ABI,
   XCM_RELAY_ABI,
+  PVM_STATUS_ABI,
   TRACK_NAMES,
 } from "@/lib/contracts";
 import { StatsHero } from "@/components/StatsHero";
@@ -26,6 +27,8 @@ import {
   Loader2,
   ChevronDown,
   RefreshCw,
+  Cpu,
+  ArrowRightLeft,
 } from "lucide-react";
 import Link from "next/link";
 
@@ -231,6 +234,104 @@ function XCMBanner() {
               <span className="text-gray-400">relayed</span>
             </div>
           )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Cross-VM Architecture Banner ───
+
+function CrossVMBanner() {
+  const { data: pvmCodecEnabled } = useReadContract({
+    address: ADDRESSES.xcmRelay,
+    abi: PVM_STATUS_ABI,
+    functionName: "usePVMCodec",
+  });
+
+  const { data: pvmScorerEnabled } = useReadContract({
+    address: ADDRESSES.govMindCore,
+    abi: PVM_STATUS_ABI,
+    functionName: "usePVMScorer",
+  });
+
+  return (
+    <div className="my-8 p-6 rounded-2xl bg-gradient-to-r from-cyan-500/5 via-surface-1 to-polkadot-purple/5 border border-cyan-500/20 relative overflow-hidden">
+      <div className="absolute top-0 left-0 w-48 h-48 bg-cyan-500/5 rounded-full blur-3xl -translate-y-1/2 -translate-x-1/2" />
+      <div className="relative z-10">
+        <div className="flex flex-col lg:flex-row items-start lg:items-center gap-6">
+          <div className="flex-1">
+            <div className="flex items-center gap-2 mb-2">
+              <Cpu className="w-5 h-5 text-cyan-400" />
+              <h3 className="text-lg font-bold text-white">
+                Cross-VM Architecture
+              </h3>
+              <span className="px-2 py-0.5 rounded-full bg-cyan-500/10 border border-cyan-500/20 text-[10px] text-cyan-400 font-bold uppercase">
+                Track 2 &middot; PVM
+              </span>
+            </div>
+            <p className="text-sm text-gray-400 max-w-lg">
+              Rust PVM contracts run on RISC-V alongside EVM. Solidity calls Rust
+              via pallet-revive cross-VM dispatch &mdash; no bridge, same chain.
+            </p>
+          </div>
+
+          {/* Cross-VM flow diagram */}
+          <div className="flex items-center gap-1.5 text-xs shrink-0">
+            <div className="px-3 py-2.5 rounded-lg bg-surface-2 border border-white/10 text-center min-w-[80px]">
+              <Layers className="w-4 h-4 text-polkadot-pink mx-auto mb-1" />
+              <span className="text-gray-300 font-medium block">EVM</span>
+              <span className="text-[9px] text-gray-500">Solidity</span>
+            </div>
+            <div className="flex flex-col items-center gap-0.5">
+              <ArrowRightLeft className="w-4 h-4 text-cyan-400" />
+              <span className="text-[9px] text-cyan-400 font-medium">cross-VM</span>
+            </div>
+            <div className="px-3 py-2.5 rounded-lg bg-surface-2 border border-cyan-500/20 text-center min-w-[80px]">
+              <Cpu className="w-4 h-4 text-cyan-400 mx-auto mb-1" />
+              <span className="text-gray-300 font-medium block">PVM</span>
+              <span className="text-[9px] text-gray-500">Rust RISC-V</span>
+            </div>
+            <div className="flex flex-col items-center gap-0.5">
+              <ArrowRight className="w-4 h-4 text-polkadot-purple" />
+              <span className="text-[9px] text-polkadot-purple font-medium">XCM</span>
+            </div>
+            <div className="px-3 py-2.5 rounded-lg bg-surface-2 border border-white/10 text-center min-w-[80px]">
+              <Globe className="w-4 h-4 text-polkadot-purple mx-auto mb-1" />
+              <span className="text-gray-300 font-medium block">Relay</span>
+              <span className="text-[9px] text-gray-500">Vote</span>
+            </div>
+          </div>
+        </div>
+
+        {/* PVM contract status pills */}
+        <div className="mt-4 flex flex-wrap gap-3">
+          <div className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-[11px] ${
+            pvmCodecEnabled
+              ? "bg-cyan-500/10 border border-cyan-500/20"
+              : "bg-surface-2 border border-white/10"
+          }`}>
+            <span className={`w-1.5 h-1.5 rounded-full ${pvmCodecEnabled ? "bg-cyan-400 animate-pulse" : "bg-gray-600"}`} />
+            <span className="text-gray-400">ScaleCodecPVM</span>
+            <span className={`font-medium ${pvmCodecEnabled ? "text-cyan-400" : "text-gray-500"}`}>
+              {pvmCodecEnabled ? "Active" : "Deployed"}
+            </span>
+            <span className="text-gray-600">&middot;</span>
+            <span className="text-gray-500">1,523 bytes</span>
+          </div>
+          <div className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-[11px] ${
+            pvmScorerEnabled
+              ? "bg-cyan-500/10 border border-cyan-500/20"
+              : "bg-surface-2 border border-white/10"
+          }`}>
+            <span className={`w-1.5 h-1.5 rounded-full ${pvmScorerEnabled ? "bg-cyan-400 animate-pulse" : "bg-gray-600"}`} />
+            <span className="text-gray-400">AlignmentScorer</span>
+            <span className={`font-medium ${pvmScorerEnabled ? "text-cyan-400" : "text-gray-500"}`}>
+              {pvmScorerEnabled ? "Active" : "Deployed"}
+            </span>
+            <span className="text-gray-600">&middot;</span>
+            <span className="text-gray-500">690 bytes</span>
+          </div>
         </div>
       </div>
     </div>
@@ -527,6 +628,7 @@ export default function Dashboard() {
       <HeroSection />
       <StatsHero />
       <XCMBanner />
+      <CrossVMBanner />
       <IdentityBanner />
       <ProposalsSection />
     </div>

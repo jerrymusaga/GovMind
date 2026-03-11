@@ -1,8 +1,8 @@
 "use client";
 
 import { useReadContract } from "wagmi";
-import { ADDRESSES, AI_ORACLE_ABI, GOVMIND_CORE_ABI, IDENTITY_VAULT_ABI, XCM_RELAY_ABI } from "@/lib/contracts";
-import { Brain, Vote, Users, Activity, Globe } from "lucide-react";
+import { ADDRESSES, AI_ORACLE_ABI, GOVMIND_CORE_ABI, IDENTITY_VAULT_ABI, XCM_RELAY_ABI, PVM_STATUS_ABI } from "@/lib/contracts";
+import { Brain, Vote, Users, Activity, Globe, Cpu } from "lucide-react";
 
 function StatCard({
   icon: Icon,
@@ -66,8 +66,23 @@ export function StatsHero() {
     functionName: "totalRelayedVotes",
   });
 
+  const { data: pvmCodecEnabled } = useReadContract({
+    address: ADDRESSES.xcmRelay,
+    abi: PVM_STATUS_ABI,
+    functionName: "usePVMCodec",
+  });
+
+  const { data: pvmScorerEnabled } = useReadContract({
+    address: ADDRESSES.govMindCore,
+    abi: PVM_STATUS_ABI,
+    functionName: "usePVMScorer",
+  });
+
+  const pvmActive = pvmCodecEnabled || pvmScorerEnabled;
+  const pvmCount = (pvmCodecEnabled ? 1 : 0) + (pvmScorerEnabled ? 1 : 0);
+
   return (
-    <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
+    <div className="grid grid-cols-2 lg:grid-cols-6 gap-4">
       <StatCard
         icon={Brain}
         label="AI Analyses"
@@ -91,6 +106,12 @@ export function StatsHero() {
         label="XCM Relayed"
         value={totalRelayed?.toString() || "0"}
         gradient="bg-gradient-to-br from-indigo-500/10 to-transparent"
+      />
+      <StatCard
+        icon={Cpu}
+        label="PVM Cross-VM"
+        value={pvmActive ? `${pvmCount}/2 Active` : "Deployed"}
+        gradient="bg-gradient-to-br from-cyan-500/10 to-transparent"
       />
       <StatCard
         icon={Users}

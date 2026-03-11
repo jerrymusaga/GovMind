@@ -18,6 +18,8 @@ export const ADDRESSES = {
   aiOracle: "0x7bD88Cd06d781B2cf39f509D0a7909160DcE95da" as `0x${string}`,
   govMindCore: "0x8DF87ba9728C42a5597e7398bC369B86c4D6386f" as `0x${string}`,
   xcmRelay: "0x34a2f569D91561A583432F8DEC0055C4f811DB73" as `0x${string}`,
+  scaleCodecPVM: "0x9c0E4B07f26726d6646C8465cfA39f9662550cDb" as `0x${string}`,
+  alignmentScorerPVM: "0x60B9D9D2097963ADf51Cf6c1E1b80309c2959238" as `0x${string}`,
 };
 
 export const IDENTITY_VAULT_ABI = [
@@ -392,6 +394,38 @@ export const XCM_RELAY_ABI = [
     stateMutability: "view",
     inputs: [],
     outputs: [{ name: "", type: "bool" }],
+  },
+] as const;
+
+// PVM cross-VM status reads from existing EVM contracts
+export const PVM_STATUS_ABI = [
+  {
+    name: "usePVMCodec",
+    type: "function",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ name: "", type: "bool" }],
+  },
+  {
+    name: "scaleCodecPVM",
+    type: "function",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ name: "", type: "address" }],
+  },
+  {
+    name: "usePVMScorer",
+    type: "function",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ name: "", type: "bool" }],
+  },
+  {
+    name: "alignmentScorerPVM",
+    type: "function",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ name: "", type: "address" }],
   },
 ] as const;
 

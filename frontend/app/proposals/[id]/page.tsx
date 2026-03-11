@@ -15,6 +15,7 @@ import {
   GOVMIND_CORE_ABI,
   IDENTITY_VAULT_ABI,
   XCM_RELAY_ABI,
+  PVM_STATUS_ABI,
   TRACK_NAMES,
   CATEGORY_NAMES,
 } from "@/lib/contracts";
@@ -47,6 +48,8 @@ import {
   Copy,
   Check,
   XCircle,
+  Cpu,
+  ArrowRightLeft,
 } from "lucide-react";
 import ChatAgent from "@/components/ChatAgent";
 import Link from "next/link";
@@ -510,6 +513,130 @@ interface VoteParams {
   aye: boolean;
   conviction: number;
   amount: string;
+}
+
+function CrossVMFlowSection() {
+  const { data: pvmCodecEnabled } = useReadContract({
+    address: ADDRESSES.xcmRelay,
+    abi: PVM_STATUS_ABI,
+    functionName: "usePVMCodec",
+  });
+
+  const { data: pvmScorerEnabled } = useReadContract({
+    address: ADDRESSES.govMindCore,
+    abi: PVM_STATUS_ABI,
+    functionName: "usePVMScorer",
+  });
+
+  return (
+    <div className="glass-card p-6 border border-cyan-500/20 bg-gradient-to-r from-cyan-500/5 via-surface-1 to-polkadot-purple/5">
+      <div className="flex items-center gap-2 mb-4">
+        <Cpu className="w-5 h-5 text-cyan-400" />
+        <h3 className="text-sm font-semibold text-white">
+          Cross-VM Vote Execution Flow
+        </h3>
+        <span className="px-2 py-0.5 text-[10px] font-bold uppercase bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 rounded">
+          EVM + PVM
+        </span>
+        <span className="px-2 py-0.5 text-[10px] font-bold uppercase bg-polkadot-pink/15 text-polkadot-pink rounded">
+          XCM V5
+        </span>
+      </div>
+
+      {/* Visual pipeline */}
+      <div className="flex items-stretch gap-0 overflow-x-auto pb-2">
+        {/* Step 1: User Vote */}
+        <div className="flex flex-col items-center min-w-[100px]">
+          <div className="w-8 h-8 rounded-full bg-polkadot-pink/20 flex items-center justify-center mb-2">
+            <span className="text-xs font-bold text-polkadot-pink">1</span>
+          </div>
+          <div className="px-3 py-2 rounded-lg bg-surface-2 border border-white/10 text-center flex-1 w-full">
+            <span className="text-[10px] text-gray-300 font-medium block">GovMindCore</span>
+            <span className="text-[9px] text-gray-500">EVM &middot; Solidity</span>
+          </div>
+        </div>
+
+        <div className="flex items-center px-1">
+          <ArrowRightLeft className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
+        </div>
+
+        {/* Step 2: PVM Alignment */}
+        <div className="flex flex-col items-center min-w-[110px]">
+          <div className="w-8 h-8 rounded-full bg-cyan-500/20 flex items-center justify-center mb-2">
+            <span className="text-xs font-bold text-cyan-400">2</span>
+          </div>
+          <div className={`px-3 py-2 rounded-lg text-center flex-1 w-full ${
+            pvmScorerEnabled
+              ? "bg-cyan-500/10 border border-cyan-500/20"
+              : "bg-surface-2 border border-white/10"
+          }`}>
+            <span className="text-[10px] text-gray-300 font-medium block">AlignmentScorer</span>
+            <span className="text-[9px] text-cyan-400 block">PVM &middot; Rust</span>
+            <span className="text-[8px] text-gray-600">690 bytes</span>
+          </div>
+        </div>
+
+        <div className="flex items-center px-1">
+          <ArrowRightLeft className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
+        </div>
+
+        {/* Step 3: SCALE Encode */}
+        <div className="flex flex-col items-center min-w-[110px]">
+          <div className="w-8 h-8 rounded-full bg-cyan-500/20 flex items-center justify-center mb-2">
+            <span className="text-xs font-bold text-cyan-400">3</span>
+          </div>
+          <div className={`px-3 py-2 rounded-lg text-center flex-1 w-full ${
+            pvmCodecEnabled
+              ? "bg-cyan-500/10 border border-cyan-500/20"
+              : "bg-surface-2 border border-white/10"
+          }`}>
+            <span className="text-[10px] text-gray-300 font-medium block">ScaleCodecPVM</span>
+            <span className="text-[9px] text-cyan-400 block">PVM &middot; Rust</span>
+            <span className="text-[8px] text-gray-600">1,523 bytes</span>
+          </div>
+        </div>
+
+        <div className="flex items-center px-1">
+          <Globe className="w-3.5 h-3.5 text-polkadot-purple shrink-0" />
+        </div>
+
+        {/* Step 4: XCM Relay */}
+        <div className="flex flex-col items-center min-w-[110px]">
+          <div className="w-8 h-8 rounded-full bg-polkadot-purple/20 flex items-center justify-center mb-2">
+            <span className="text-xs font-bold text-polkadot-purple">4</span>
+          </div>
+          <div className="px-3 py-2 rounded-lg bg-surface-2 border border-white/10 text-center flex-1 w-full">
+            <span className="text-[10px] text-gray-300 font-medium block">XCM Precompile</span>
+            <span className="text-[9px] text-polkadot-purple block">0x0A0000</span>
+            <span className="text-[8px] text-gray-600">Transact</span>
+          </div>
+        </div>
+
+        <div className="flex items-center px-1">
+          <ArrowRightLeft className="w-3.5 h-3.5 text-polkadot-purple shrink-0" />
+        </div>
+
+        {/* Step 5: Relay Chain */}
+        <div className="flex flex-col items-center min-w-[110px]">
+          <div className="w-8 h-8 rounded-full bg-emerald-500/20 flex items-center justify-center mb-2">
+            <span className="text-xs font-bold text-emerald-400">5</span>
+          </div>
+          <div className="px-3 py-2 rounded-lg bg-emerald-500/5 border border-emerald-500/20 text-center flex-1 w-full">
+            <span className="text-[10px] text-gray-300 font-medium block">Relay Chain</span>
+            <span className="text-[9px] text-emerald-400 block">convictionVoting</span>
+            <span className="text-[8px] text-gray-600">Vote Counted</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Description */}
+      <p className="text-[11px] text-gray-500 mt-3">
+        Your vote flows through two VMs on the same chain: EVM Solidity orchestrates the vote,
+        Rust PVM contracts handle SCALE encoding and alignment scoring on RISC-V,
+        then XCM V5 relays to the Relay Chain for execution.
+      </p>
+    </div>
+  );
 }
 
 function VotePanel({
@@ -1507,44 +1634,8 @@ export default function ProposalDetailPage() {
             </div>
           </div>
 
-          {/* ── Row 5: XCM Cross-Chain Relay ── */}
-          <div className="glass-card p-6 border border-polkadot-purple/20 bg-gradient-to-r from-polkadot-purple/5 to-polkadot-pink/5">
-            <div className="flex items-start gap-4">
-              <div className="w-12 h-12 rounded-xl bg-polkadot-purple/15 flex items-center justify-center flex-shrink-0">
-                <Globe className="w-6 h-6 text-polkadot-purple" />
-              </div>
-              <div className="flex-1">
-                <h3 className="text-sm font-semibold text-white flex items-center gap-2 mb-1">
-                  XCM Cross-Chain Vote Relay
-                  <span className="px-2 py-0.5 text-[10px] font-bold uppercase bg-polkadot-pink/15 text-polkadot-pink rounded">
-                    Polkadot Native
-                  </span>
-                </h3>
-                <p className="text-xs text-gray-400 mb-3">
-                  Votes cast through GovMind are relayed to Polkadot Relay Chain
-                  via XCM Transact. The contract SCALE-encodes{" "}
-                  <code className="text-polkadot-purple">
-                    convictionVoting.vote()
-                  </code>{" "}
-                  and sends it cross-chain through the XCM precompile.
-                </p>
-                <div className="flex flex-wrap gap-2">
-                  <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-surface-2 text-[11px]">
-                    <Link2 className="w-3 h-3 text-polkadot-pink" />
-                    <span className="text-gray-400">Hub EVM</span>
-                    <span className="text-gray-600 mx-0.5">&rarr;</span>
-                    <span className="text-gray-400">XCM</span>
-                    <span className="text-gray-600 mx-0.5">&rarr;</span>
-                    <span className="text-gray-400">Relay Chain</span>
-                  </div>
-                  <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-surface-2 text-[11px] text-gray-400">
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                    SCALE Codec + XCM V5
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
+          {/* ── Row 5: Cross-VM + XCM Architecture ── */}
+          <CrossVMFlowSection />
 
           {/* ── Row 6: Verify XCM Encoding (only after user votes) ── */}
           {voteParams && (
