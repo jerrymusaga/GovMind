@@ -2,7 +2,7 @@
 
 > **Two users. Same proposal. Different values. Different AI recommendations. Both vote on the Relay Chain from Hub EVM via XCM.**
 
-**Track 1: EVM Smart Contract — Polkadot Solidity Hackathon 2026**
+**Track 1: EVM Smart Contract | Track 2: PVM Smart Contracts — Polkadot Solidity Hackathon 2026**
 
 ---
 
@@ -46,30 +46,32 @@ GovMind is an AI governance intelligence platform that makes OpenGov accessible 
 └───────────────────────────────┬─────────────────────────────────┘
                                 │
 ┌───────────────────────────────▼─────────────────────────────────┐
-│  Smart Contracts (Solidity 0.8.28 on Polkadot Hub EVM)          │
+│  EVM Contracts (Solidity 0.8.28 on Polkadot Hub)     [Track 1]  │
 │  ├── GovMindCore.sol      — Vote orchestration & personalization│
 │  ├── IdentityVault.sol    — 6-axis governance identity storage  │
 │  ├── AIOracle.sol         — AI analysis bridge (on-chain proof) │
 │  ├── XCMGovernanceRelay.sol — XCM vote relay to Relay Chain     │
 │  └── ScaleCodec.sol       — Pure Solidity SCALE encoding lib    │
-└───────────────────────────────┬─────────────────────────────────┘
-                                │ XCM Precompile (0x0A0000)
-                                ▼
-┌─────────────────────────────────────────────────────────────────┐
-│  Polkadot Relay Chain                                           │
-│  └── convictionVoting.vote() — Pallet index 20, call index 0   │
-└─────────────────────────────────────────────────────────────────┘
-                                ▲
-┌───────────────────────────────┴─────────────────────────────────┐
-│  AI Backend (Node.js + OpenAI GPT-4o-mini)                      │
-│  ├── Polkassembly API — voting tally, comments, spending data   │
-│  ├── Historical precedent matching — proposer track record      │
-│  ├── Deep analysis — treasury breakdown, risk factors, etc.     │
-│  ├── Change detection — re-analyzes on tally swings/new data    │
-│  ├── AI Agent chat — conversational governance advisor           │
-│  └── REST API (port 3001) — serves analysis + chat to frontend  │
-└─────────────────────────────────────────────────────────────────┘
+└──────────┬────────────────────┬─────────────────────────────────┘
+           │ cross-VM dispatch  │ XCM Precompile (0x0A0000)
+           ▼ (pallet-revive)   ▼
+┌──────────────────────┐  ┌──────────────────────────────────────┐
+│  PVM Contracts       │  │  Polkadot Relay Chain                │
+│  (Rust → RISC-V)     │  │  └── convictionVoting.vote()         │
+│  [Track 2]           │  │      Pallet 20, call 0               │
+│  ├── ScaleCodecPVM   │  └──────────────────────────────────────┘
+│  │   Native SCALE    │                   ▲
+│  │   encoding        │  ┌────────────────┴─────────────────────┐
+│  └── AlignmentScorer │  │  AI Backend (Node.js + GPT-4o-mini)  │
+│      Governance      │  │  ├── Polkassembly API — tally, data  │
+│      personalization │  │  ├── Deep analysis — risk, treasury   │
+│      on RISC-V       │  │  ├── Change detection & re-analysis  │
+└──────────────────────┘  │  ├── AI Agent chat — governance Q&A  │
+                          │  └── REST API (port 3001)             │
+                          └──────────────────────────────────────┘
 ```
+
+**Two VMs. Three layers. No bridge.** EVM contracts call Rust PVM contracts via pallet-revive cross-VM dispatch. PVM contracts relay votes to the Relay Chain via XCM.
 
 ---
 
@@ -119,13 +121,24 @@ GovMind is an AI governance intelligence platform that makes OpenGov accessible 
 
 ## Smart Contracts
 
+### EVM Contracts (Solidity — Track 1)
+
 | Contract | Purpose |
 |----------|---------|
-| `GovMindCore.sol` | Orchestrates manual + AI votes, on-chain personalization engine (`_computeAlignmentScore`), XCM relay integration |
+| `GovMindCore.sol` | Orchestrates manual + AI votes, on-chain personalization engine, XCM relay integration. Delegates to PVM AlignmentScorer when enabled. |
 | `IdentityVault.sol` | Stores governance identities: 6-axis preference weights, risk tolerance, per-track AI delegation config |
 | `AIOracle.sol` | Receives AI analyses from backend, stores on-chain with IPFS references. Supports re-analysis with version tracking |
-| `XCMGovernanceRelay.sol` | SCALE-encodes `convictionVoting.vote()`, constructs XCM V5 message, sends via XCM precompile to Relay Chain |
-| `ScaleCodec.sol` | Pure Solidity SCALE encoding: compact u32/u64/u128, fixed-width u128 LE, Vec\<u8\> |
+| `XCMGovernanceRelay.sol` | Constructs XCM V5 message, sends via XCM precompile to Relay Chain. Delegates SCALE encoding to PVM ScaleCodecPVM when enabled. |
+| `ScaleCodec.sol` | Pure Solidity SCALE encoding: compact u32/u64/u128, fixed-width u128 LE, Vec\<u8\> (fallback when PVM codec is disabled) |
+
+### PVM Contracts (Rust → RISC-V — Track 2)
+
+| Contract | Binary Size | Purpose |
+|----------|-------------|---------|
+| `ScaleCodecPVM` | 1,532 bytes | Native Rust SCALE encoding on RISC-V. Encodes `convictionVoting.vote()` calls with compact integers and fixed-width u128 LE. Called cross-VM from `XCMGovernanceRelay.sol`. |
+| `AlignmentScorer` | 692 bytes | Governance personalization engine on RISC-V. Computes 6-axis alignment scores, applies risk penalties, and returns personalized recommendations. Called cross-VM from `GovMindCore.sol`. |
+
+Both PVM contracts are called transparently from EVM Solidity via **pallet-revive cross-VM dispatch** — no bridge, no XCM, just a regular contract call that routes across VMs.
 
 ### Personalization Algorithm
 
@@ -183,6 +196,49 @@ XCMGovernanceRelay.relayVote()
     DOT teleported to Relay Chain → convictionVoting.vote() executed
 ```
 
+### Cross-VM Architecture (Track 2)
+
+GovMind runs computation-heavy logic on Rust PVM contracts, called from Solidity EVM contracts via pallet-revive's cross-VM dispatch:
+
+```
+EVM (Solidity)                          PVM (Rust → RISC-V)
+──────────────                          ────────────────────
+XCMGovernanceRelay.relayVote()
+    │
+    ├─ usePVMCodec == true?
+    │   YES → scaleCodecPVM.encodeVoteCall(pollIndex, aye, conviction, balance)
+    │         │                         ┌─────────────────────────────┐
+    │         └── cross-VM dispatch ──► │ ScaleCodecPVM (1,532 bytes) │
+    │                                   │  SCALE compact u32          │
+    │                                   │  Vote byte (aye + conviction)│
+    │                                   │  u128 LE balance            │
+    │                                   │  Returns: encoded call bytes│
+    │                                   └─────────────────────────────┘
+    │   NO  → ScaleCodec.sol (pure Solidity fallback)
+    │
+    └─ Build XCM V5 → XCM Precompile (0x0A0000) → Relay Chain
+
+GovMindCore.getPersonalizedInsightPVM()
+    │
+    ├─ Load user preferences from IdentityVault
+    ├─ Load AI analysis from AIOracle
+    │
+    └─ alignmentScorerPVM.computeAlignment(w0..w5, risk, category, ...)
+                                        ┌─────────────────────────────┐
+           cross-VM dispatch ─────────► │ AlignmentScorer (692 bytes) │
+                                        │  6-axis alignment scoring   │
+                                        │  Risk penalty calculation   │
+                                        │  Recommendation adjustment  │
+                                        │  Returns: (score, rec, conf)│
+                                        └─────────────────────────────┘
+```
+
+**Why Rust PVM?**
+- **Native SCALE encoding** — Substrate's codec written in the language it was designed for
+- **Deterministic integer math** — No Solidity overflow quirks for governance scoring
+- **Tiny binaries** — 692 bytes and 1,532 bytes, smaller than most Solidity contracts
+- **Togglable** — Admin can switch between EVM-only and cross-VM mode via `setPVMCodec()` / `setPVMScorer()`
+
 ---
 
 ## Polkassembly Integration
@@ -204,12 +260,21 @@ GovMind integrates with Polkassembly's data layer (the same data powering [Klara
 
 ## Deployed Contracts (Polkadot Hub Testnet v4)
 
+### EVM Contracts
+
 | Contract | Address |
 |----------|---------|
 | IdentityVault | [`0x5DAdd67d21330153CaA2fF5dB3a0Ce96786f9eb8`](https://blockscout-testnet.polkadot.io/address/0x5DAdd67d21330153CaA2fF5dB3a0Ce96786f9eb8) |
 | AIOracle | [`0x628812BE85aC3fe49bfC6b3aD3F26d0097a07667`](https://blockscout-testnet.polkadot.io/address/0x628812BE85aC3fe49bfC6b3aD3F26d0097a07667) |
 | GovMindCore | [`0x018aC1f307d6b2FD1426458Df4d32e306660398a`](https://blockscout-testnet.polkadot.io/address/0x018aC1f307d6b2FD1426458Df4d32e306660398a) |
 | XCMGovernanceRelay | [`0x246DE6C6e938f70305B6919C94e4D103c0D7d45f`](https://blockscout-testnet.polkadot.io/address/0x246DE6C6e938f70305B6919C94e4D103c0D7d45f) |
+
+### PVM Contracts
+
+| Contract | Status |
+|----------|--------|
+| ScaleCodecPVM | Ready to deploy (`pvm-contracts/build.sh` → `deploy.js`) |
+| AlignmentScorer | Ready to deploy (`pvm-contracts/build.sh` → `deploy.js`) |
 
 **Network:** Polkadot Hub Testnet | **Chain ID:** `420420417` | **RPC:** `https://services.polkadothub-rpc.com/testnet`
 
@@ -220,13 +285,19 @@ GovMind integrates with Polkassembly's data layer (the same data powering [Klara
 ## Quick Start
 
 ```bash
-# Smart Contracts
+# EVM Smart Contracts (Track 1)
 forge install
 forge build
-forge test -vvv                # 75 tests: identity, AI oracle, personalization, XCM relay, SCALE codec, fuzz
+forge test -vvv                # 79 tests: identity, AI oracle, personalization, XCM relay, SCALE codec, fuzz
 
-# Deploy to Polkadot Hub Testnet
+# Deploy EVM to Polkadot Hub Testnet
 forge script script/Deploy.s.sol --rpc-url https://services.polkadothub-rpc.com/testnet --broadcast
+
+# PVM Smart Contracts (Track 2)
+# Requires: rustup with nightly-2024-11-19, polkatool
+cd pvm-contracts
+./build.sh                     # Builds ScaleCodecPVM (1,532 bytes) + AlignmentScorer (692 bytes)
+node deploy.js                 # Deploys PVM binaries and wires into EVM contracts
 
 # AI Backend
 cd backend && npm install
@@ -242,15 +313,15 @@ npm run dev                    # http://localhost:3000
 
 ## Test Suite
 
-**75 tests** across two test files:
+**79 tests** across two test files:
 
 | File | Tests | Coverage |
 |------|-------|----------|
-| `GovMind.t.sol` | 45 | Identity creation, preference weights, AI analysis publishing/updating, personalization (two users opposite recs), alignment scoring, risk penalty, manual/AI voting, access control, edge cases, 3 fuzz tests |
-| `XCMRelay.t.sol` | 30 | SCALE compact encoding (1/2/4 byte), U128 LE encoding, vote byte construction, XCM V5 message structure (WithdrawAsset, InitiateTeleport, BuyExecution, Transact, RefundSurplus, DepositAsset), relay execution with mocked precompile, authorization, weight/fee admin, 4 fuzz tests (256 runs each) |
+| `GovMind.t.sol` | 47 | Identity creation, preference weights, AI analysis publishing/updating, personalization (two users opposite recs), alignment scoring, risk penalty, manual/AI voting, PVM scorer integration, access control, edge cases, 3 fuzz tests |
+| `XCMRelay.t.sol` | 32 | SCALE compact encoding (1/2/4 byte), U128 LE encoding, vote byte construction, XCM V5 message structure (WithdrawAsset, InitiateTeleport, BuyExecution, Transact, RefundSurplus, DepositAsset), relay execution with mocked precompile, PVM codec integration, authorization, weight/fee admin, 4 fuzz tests (256 runs each) |
 
 ```bash
-forge test -vvv                                    # All 75 tests
+forge test -vvv                                    # All 79 tests
 forge test --match-path test/XCMRelay.t.sol -vvv   # XCM + SCALE tests only
 forge test --match-test testFuzz -vvv              # Fuzz tests only
 ```
@@ -261,7 +332,9 @@ forge test --match-test testFuzz -vvv              # Fuzz tests only
 
 | Layer | Technology |
 |-------|-----------|
-| **Smart Contracts** | Solidity 0.8.28, Foundry, OpenZeppelin v5, XCM Precompile, SCALE Codec |
+| **EVM Contracts** | Solidity 0.8.28, Foundry, OpenZeppelin v5, XCM Precompile, SCALE Codec |
+| **PVM Contracts** | Rust (no_std), polkavm-derive, pallet-revive-uapi, RISC-V target, polkatool |
+| **Cross-VM** | pallet-revive cross-VM dispatch (EVM ↔ PVM, transparent routing) |
 | **Frontend** | Next.js 14, React 18, TypeScript, Wagmi v2, RainbowKit, TailwindCSS |
 | **AI Backend** | Node.js, OpenAI GPT-4o-mini, Ethers.js v6 |
 | **Data** | Polkassembly API, IPFS (analysis storage) |
@@ -271,12 +344,14 @@ forge test --match-test testFuzz -vvv              # Fuzz tests only
 ## Roadmap
 
 ### Current State (Hackathon)
-- 5 Solidity contracts deployed on Polkadot Hub Testnet
+- 5 EVM contracts (Solidity) deployed on Polkadot Hub Testnet
+- 2 PVM contracts (Rust → RISC-V) with cross-VM integration into EVM contracts
 - AI analysis pipeline with deep proposal intelligence
 - 6-axis personalized governance identity with on-chain alignment scoring
 - XCM V5 cross-chain vote relay (proof-of-concept via Hub sovereign account)
 - Conversational AI governance agent
-- 75 tests including fuzz testing
+- 79 tests including fuzz testing
+- Dual-track submission: Track 1 (EVM) + Track 2 (PVM)
 
 ### Phase 1 — Production Voting (Post-Hackathon)
 **Goal:** Make every user's vote count individually on the Relay Chain.

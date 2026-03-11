@@ -6,6 +6,7 @@ import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "./IdentityVault.sol";
 import "./AIOracle.sol";
 import "./XCMGovernanceRelay.sol";
+import "./interfaces/IAlignmentScorer.sol";
 
 /// @title GovMindCore - AI Governance Intelligence Layer
 /// @notice Main orchestrator that coordinates AI analysis, user identities,
@@ -57,6 +58,12 @@ contract GovMindCore is Ownable, ReentrancyGuard {
     /// @notice Whether to relay votes to Relay Chain via XCM
     bool public xcmRelayEnabled;
 
+    /// @notice PVM Alignment Scorer contract (Rust on RISC-V, called cross-VM)
+    IAlignmentScorer public alignmentScorerPVM;
+
+    /// @notice Whether to use PVM (Rust) for alignment scoring instead of Solidity
+    bool public usePVMScorer;
+
     /// @notice User => referendum => VoteRecord
     mapping(address => mapping(uint256 => VoteRecord)) public voteRecords;
 
@@ -98,6 +105,7 @@ contract GovMindCore is Ownable, ReentrancyGuard {
 
     event XCMRelayUpdated(address indexed relay);
     event XCMRelayToggled(bool enabled);
+    event PVMScorerUpdated(address indexed scorer, bool enabled);
     event VoteRelayedViaXCM(
         address indexed voter,
         uint256 indexed referendumIndex,
@@ -407,6 +415,76 @@ contract GovMindCore is Ownable, ReentrancyGuard {
         );
     }
 
+    /// @notice Get personalized insight using PVM Rust alignment scorer (cross-VM)
+    /// @dev Non-view because cross-VM calls are state-changing transactions.
+    ///      Uses the Rust PVM contract for alignment computation on RISC-V.
+    function getPersonalizedInsightPVM(
+        address _user,
+        uint256 _referendumIndex
+    )
+        external
+        returns (
+            int8 personalizedRecommendation,
+            uint8 adjustedConfidence,
+            uint8 riskScore,
+            uint8 alignmentScore,
+            string memory analysisHash
+        )
+    {
+        require(usePVMScorer && address(alignmentScorerPVM) != address(0), "PVM scorer not enabled");
+
+        if (!aiOracle.hasAnalysis(_referendumIndex)) {
+            return (0, 0, 0, 50, "");
+        }
+
+        AIOracle.ProposalAnalysis memory analysis = aiOracle.getAnalysis(_referendumIndex);
+
+        if (!identityVault.hasIdentity(_user)) {
+            return (
+                analysis.recommendation,
+                analysis.confidence,
+                analysis.riskScore,
+                50,
+                analysis.analysisIPFSHash
+            );
+        }
+
+        // Cross-VM call to Rust PVM alignment scorer
+        (alignmentScore, personalizedRecommendation, adjustedConfidence) = _computeAlignmentPVM(
+            _user, analysis.categoryId, analysis.riskScore, analysis.recommendation, analysis.confidence
+        );
+        riskScore = analysis.riskScore;
+        analysisHash = analysis.analysisIPFSHash;
+    }
+
+    /// @dev Internal helper to call PVM scorer, avoids stack-too-deep
+    function _computeAlignmentPVM(
+        address _user,
+        uint8 _categoryId,
+        uint8 _riskScore,
+        int8 _recommendation,
+        uint8 _confidence
+    ) internal returns (uint8, int8, uint8) {
+        uint8[6] memory w = identityVault.getPreferenceWeights(_user);
+        (, uint8 riskTol, , , , , ,) = identityVault.identities(_user);
+        return _callPVMScorer(w, riskTol, _categoryId, _riskScore, _recommendation, _confidence);
+    }
+
+    /// @dev Separate function to isolate the 11-arg external call
+    function _callPVMScorer(
+        uint8[6] memory w,
+        uint8 _riskTol,
+        uint8 _catId,
+        uint8 _risk,
+        int8 _rec,
+        uint8 _conf
+    ) internal returns (uint8, int8, uint8) {
+        return alignmentScorerPVM.computeAlignment(
+            w[0], w[1], w[2], w[3], w[4], w[5],
+            _riskTol, _catId, _risk, _rec, _conf
+        );
+    }
+
     // ============================================================
     //                       ADMIN
     // ============================================================
@@ -434,6 +512,16 @@ contract GovMindCore is Ownable, ReentrancyGuard {
         if (_aiOracle != address(0)) {
             aiOracle = AIOracle(_aiOracle);
         }
+    }
+
+    /// @notice Set PVM alignment scorer contract and toggle cross-VM computation
+    /// @dev The PVM contract (Rust → RISC-V) handles alignment scoring natively.
+    ///      When enabled, getPersonalizedInsightPVM() delegates computation
+    ///      to the Rust contract via pallet-revive cross-VM dispatch.
+    function setPVMScorer(address _scorer, bool _enabled) external onlyOwner {
+        alignmentScorerPVM = IAlignmentScorer(_scorer);
+        usePVMScorer = _enabled;
+        emit PVMScorerUpdated(_scorer, _enabled);
     }
 
     // ============================================================

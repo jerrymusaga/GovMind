@@ -3,6 +3,8 @@ name = "scale-codec-pvm"
 version = "0.1.0"
 edition = "2021"
 publish = false
+autobins = false
+autolib = false
 
 [[bin]]
 name = "scale-codec-pvm"

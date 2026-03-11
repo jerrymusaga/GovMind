@@ -4,6 +4,7 @@ pragma solidity ^0.8.28;
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "./ScaleCodec.sol";
 import "./interfaces/IXcm.sol";
+import "./interfaces/IScaleCodecPVM.sol";
 
 /// @title XCMGovernanceRelay - Cross-Chain Vote Execution via XCM
 /// @notice Enables GovMind to relay governance votes from Polkadot Hub EVM
@@ -73,6 +74,12 @@ contract XCMGovernanceRelay is Ownable {
     /// @notice Whether XCM relay is active (can be disabled if routing issues)
     bool public relayEnabled;
 
+    /// @notice PVM SCALE codec contract (Rust on RISC-V, called cross-VM)
+    IScaleCodecPVM public scaleCodecPVM;
+
+    /// @notice Whether to use PVM (Rust) for SCALE encoding instead of Solidity
+    bool public usePVMCodec;
+
     /// @notice Authorized callers (GovMindCore contract)
     mapping(address => bool) public authorizedCallers;
 
@@ -109,6 +116,7 @@ contract XCMGovernanceRelay is Ownable {
     event CallerRevoked(address indexed caller);
     event WeightUpdated(uint64 refTime, uint64 proofSize);
     event FeeUpdated(uint128 amount);
+    event PVMCodecUpdated(address indexed codec, bool enabled);
 
     // ============================================================
     //                         ERRORS
@@ -150,12 +158,17 @@ contract XCMGovernanceRelay is Ownable {
         if (_amount == 0) revert ZeroAmount();
 
         // 1. SCALE-encode the convictionVoting.vote() call
-        bytes memory encodedCall = _encodeConvictionVote(
-            _referendumIndex,
-            _aye,
-            _conviction,
-            _amount
-        );
+        //    Uses PVM Rust codec (cross-VM) if enabled, otherwise Solidity codec
+        bytes memory encodedCall;
+        if (usePVMCodec && address(scaleCodecPVM) != address(0)) {
+            encodedCall = scaleCodecPVM.encodeVoteCall(
+                _referendumIndex, _aye, _conviction, _amount
+            );
+        } else {
+            encodedCall = _encodeConvictionVote(
+                _referendumIndex, _aye, _conviction, _amount
+            );
+        }
 
         // 2. Build the XCM message (execute with InitiateTeleport)
         bytes memory xcmMessage = _buildXcmMessage(encodedCall);
@@ -436,6 +449,16 @@ contract XCMGovernanceRelay is Ownable {
     function updateFee(uint128 _amount) external onlyOwner {
         xcmFeeAmount = _amount;
         emit FeeUpdated(_amount);
+    }
+
+    /// @notice Set PVM SCALE codec contract and toggle cross-VM encoding
+    /// @dev The PVM contract (Rust → RISC-V) handles SCALE encoding natively.
+    ///      When enabled, _encodeConvictionVote is replaced by a cross-VM call
+    ///      to the Rust contract via pallet-revive.
+    function setPVMCodec(address _codec, bool _enabled) external onlyOwner {
+        scaleCodecPVM = IScaleCodecPVM(_codec);
+        usePVMCodec = _enabled;
+        emit PVMCodecUpdated(_codec, _enabled);
     }
 
 }
