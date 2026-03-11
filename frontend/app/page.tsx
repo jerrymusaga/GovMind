@@ -1,49 +1,30 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
 import { useAccount, useReadContract } from "wagmi";
 import { ConnectButton } from "@rainbow-me/rainbowkit";
 import {
   ADDRESSES,
   AI_ORACLE_ABI,
-  IDENTITY_VAULT_ABI,
   XCM_RELAY_ABI,
   PVM_STATUS_ABI,
-  TRACK_NAMES,
 } from "@/lib/contracts";
-import { StatsHero } from "@/components/StatsHero";
-import { ProposalCard } from "@/components/ProposalCard";
 import {
   Brain,
   Sparkles,
   ArrowRight,
   Fingerprint,
   ShieldCheck,
-  Zap,
   Globe,
   Layers,
-  Search,
-  Filter,
-  Loader2,
-  ChevronDown,
-  RefreshCw,
   Cpu,
   ArrowRightLeft,
+  Zap,
+  BarChart3,
+  Vote,
+  Code2,
+  CheckCircle2,
 } from "lucide-react";
 import Link from "next/link";
-
-// ─── Types ───
-
-interface ReferendumListing {
-  referendumIndex: number;
-  title: string;
-  track: number;
-  trackName: string;
-  state: string;
-  proposer: string;
-  createdAt: string;
-  commentsCount: number;
-}
 
 // ─── Hero Section ───
 
@@ -51,84 +32,100 @@ function HeroSection() {
   const { isConnected } = useAccount();
 
   return (
-    <div className="relative mb-12">
-      <div className="text-center max-w-3xl mx-auto">
-        <div className="inline-flex items-center gap-2 px-4 py-1.5 mb-6 rounded-full bg-polkadot-pink/10 border border-polkadot-pink/20">
-          <Sparkles className="w-3.5 h-3.5 text-polkadot-pink" />
-          <span className="text-xs font-medium text-polkadot-pink">
-            AI + XCM Cross-Chain Voting on Polkadot Hub
-          </span>
-        </div>
-
-        <h1 className="text-4xl sm:text-5xl font-bold mb-4 tracking-tight">
-          Your{" "}
-          <span className="gradient-text">AI Governance</span>
-          <br />
-          Co-Pilot for OpenGov
-        </h1>
-
-        <p className="text-gray-400 text-lg mb-8 max-w-xl mx-auto leading-relaxed">
-          AI-powered analysis. Personalized recommendations. Cross-chain
-          execution via XCM. GovMind analyzes proposals, matches them to{" "}
-          <em>your</em> values, and relays votes to Polkadot Relay Chain.
-        </p>
-
-        {!isConnected ? (
-          <div className="flex flex-col items-center gap-4">
-            <ConnectButton />
-            <p className="text-xs text-gray-500">
-              Connect your wallet to get personalized recommendations
-            </p>
-          </div>
-        ) : (
-          <div className="flex flex-wrap items-center justify-center gap-3">
-            <Link href="/identity" className="btn-primary flex items-center gap-2">
-              <Fingerprint className="w-4 h-4" />
-              Set Up Identity
-            </Link>
-            <a href="#proposals" className="btn-secondary flex items-center gap-2">
-              View Proposals
-              <ArrowRight className="w-4 h-4" />
-            </a>
-          </div>
-        )}
+    <div className="relative py-16 text-center max-w-4xl mx-auto">
+      <div className="inline-flex items-center gap-2 px-4 py-1.5 mb-6 rounded-full bg-polkadot-pink/10 border border-polkadot-pink/20">
+        <Sparkles className="w-3.5 h-3.5 text-polkadot-pink" />
+        <span className="text-xs font-medium text-polkadot-pink">
+          Polkadot Solidity Hackathon 2026
+        </span>
       </div>
 
-      {/* Feature pills */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mt-12 max-w-3xl mx-auto">
-        {[
-          {
-            icon: Brain,
-            title: "AI Analysis",
-            desc: "GPT-powered risk scoring & recommendations",
-          },
-          {
-            icon: Fingerprint,
-            title: "Personal Identity",
-            desc: "6-axis governance preference profile",
-          },
-          {
-            icon: Globe,
-            title: "XCM Cross-Chain",
-            desc: "Vote on Relay Chain directly from Hub EVM",
-          },
-          {
-            icon: ShieldCheck,
-            title: "On-Chain Proof",
-            desc: "Every analysis stored immutably on-chain",
-          },
-        ].map(({ icon: Icon, title, desc }) => (
-          <div
-            key={title}
-            className="flex items-start gap-3 p-4 rounded-xl bg-surface-1/50 border border-white/5"
-          >
-            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-polkadot-pink/20 to-polkadot-purple/20 flex items-center justify-center flex-shrink-0">
-              <Icon className="w-4 h-4 text-polkadot-pink" />
+      <h1 className="text-5xl sm:text-6xl font-bold mb-6 tracking-tight leading-tight">
+        Your{" "}
+        <span className="gradient-text">AI Governance</span>
+        <br />
+        Co-Pilot for OpenGov
+      </h1>
+
+      <p className="text-gray-400 text-lg mb-10 max-w-2xl mx-auto leading-relaxed">
+        GovMind uses AI to analyze Polkadot governance proposals, match them to your
+        personal values, and execute votes cross-chain via XCM &mdash; all from a single
+        interface on Polkadot Hub EVM.
+      </p>
+
+      {!isConnected ? (
+        <div className="flex flex-col items-center gap-4">
+          <ConnectButton />
+          <p className="text-xs text-gray-500">
+            Connect your wallet to get started
+          </p>
+        </div>
+      ) : (
+        <div className="flex flex-wrap items-center justify-center gap-4">
+          <Link href="/proposals" className="btn-primary flex items-center gap-2 text-base px-6 py-3">
+            <Vote className="w-5 h-5" />
+            Browse Proposals
+          </Link>
+          <Link href="/identity" className="btn-secondary flex items-center gap-2 text-base px-6 py-3">
+            <Fingerprint className="w-5 h-5" />
+            Set Up Identity
+          </Link>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── How It Works ───
+
+function HowItWorks() {
+  const steps = [
+    {
+      num: "01",
+      icon: Fingerprint,
+      title: "Create Your Identity",
+      desc: "Define your governance philosophy across 6 axes: decentralization, treasury, technical, community, security, and ecosystem growth.",
+    },
+    {
+      num: "02",
+      icon: Brain,
+      title: "AI Analyzes Proposals",
+      desc: "Our AI oracle reads each referendum, scores risk, and generates personalized alignment scores based on your identity.",
+    },
+    {
+      num: "03",
+      icon: Vote,
+      title: "Vote with Confidence",
+      desc: "See clear recommendations, understand the tradeoffs, and cast your vote directly from the interface.",
+    },
+    {
+      num: "04",
+      icon: Globe,
+      title: "Cross-Chain Execution",
+      desc: "Your vote is SCALE-encoded, wrapped in an XCM V5 message, and relayed to Polkadot Relay Chain — seamlessly.",
+    },
+  ];
+
+  return (
+    <div className="py-16">
+      <div className="text-center mb-12">
+        <h2 className="text-3xl font-bold text-white mb-3">How GovMind Works</h2>
+        <p className="text-gray-400 max-w-lg mx-auto">
+          From identity setup to cross-chain vote execution in four steps.
+        </p>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        {steps.map(({ num, icon: Icon, title, desc }) => (
+          <div key={num} className="relative p-6 rounded-2xl bg-surface-1/50 border border-white/5 hover:border-polkadot-pink/20 transition-colors group">
+            <span className="text-4xl font-black text-white/5 absolute top-4 right-4 group-hover:text-polkadot-pink/10 transition-colors">
+              {num}
+            </span>
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-polkadot-pink/20 to-polkadot-purple/20 flex items-center justify-center mb-4">
+              <Icon className="w-5 h-5 text-polkadot-pink" />
             </div>
-            <div>
-              <p className="text-sm font-semibold text-white">{title}</p>
-              <p className="text-xs text-gray-500 mt-0.5">{desc}</p>
-            </div>
+            <h3 className="text-base font-semibold text-white mb-2">{title}</h3>
+            <p className="text-sm text-gray-500 leading-relaxed">{desc}</p>
           </div>
         ))}
       </div>
@@ -136,113 +133,9 @@ function HeroSection() {
   );
 }
 
-// ─── Identity Banner ───
+// ─── Architecture Section ───
 
-function IdentityBanner() {
-  const { address, isConnected } = useAccount();
-
-  const { data: hasIdentity } = useReadContract({
-    address: ADDRESSES.identityVault,
-    abi: IDENTITY_VAULT_ABI,
-    functionName: "hasIdentity",
-    args: address ? [address] : undefined,
-    query: { enabled: isConnected && !!address },
-  });
-
-  if (!isConnected || hasIdentity) return null;
-
-  return (
-    <div className="mb-8 p-5 rounded-2xl bg-gradient-to-r from-polkadot-pink/10 to-polkadot-purple/10 border border-polkadot-pink/20">
-      <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
-        <div className="w-12 h-12 rounded-xl bg-polkadot-pink/20 flex items-center justify-center flex-shrink-0">
-          <Zap className="w-6 h-6 text-polkadot-pink" />
-        </div>
-        <div className="flex-1">
-          <h3 className="text-sm font-semibold text-white mb-1">
-            Create your Governance Identity
-          </h3>
-          <p className="text-xs text-gray-400">
-            Set your governance philosophy to get personalized AI recommendations
-            that match your values. Without an identity, you&apos;ll see generic
-            analysis.
-          </p>
-        </div>
-        <Link href="/identity" className="btn-primary text-sm whitespace-nowrap">
-          Create Identity
-        </Link>
-      </div>
-    </div>
-  );
-}
-
-// ─── XCM Banner ───
-
-function XCMBanner() {
-  const { data: relayEnabled } = useReadContract({
-    address: ADDRESSES.xcmRelay,
-    abi: XCM_RELAY_ABI,
-    functionName: "relayEnabled",
-  });
-
-  const { data: totalRelayed } = useReadContract({
-    address: ADDRESSES.xcmRelay,
-    abi: XCM_RELAY_ABI,
-    functionName: "totalRelayedVotes",
-  });
-
-  return (
-    <div className="my-8 p-6 rounded-2xl bg-gradient-to-r from-polkadot-purple/10 via-surface-1 to-polkadot-pink/10 border border-polkadot-purple/20 relative overflow-hidden">
-      <div className="absolute top-0 right-0 w-48 h-48 bg-polkadot-purple/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2" />
-      <div className="relative z-10 flex flex-col lg:flex-row items-start lg:items-center gap-6">
-        <div className="flex-1">
-          <div className="flex items-center gap-2 mb-2">
-            <Globe className="w-5 h-5 text-polkadot-purple" />
-            <h3 className="text-lg font-bold text-white">
-              XCM Cross-Chain Voting
-            </h3>
-            {relayEnabled && (
-              <span className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-[10px] text-emerald-400 font-medium">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 live-dot" />
-                LIVE
-              </span>
-            )}
-          </div>
-          <p className="text-sm text-gray-400 max-w-lg">
-            Vote on Polkadot Relay Chain referenda directly from Hub EVM.
-            GovMind SCALE-encodes your vote, constructs an XCM V5 message,
-            and relays it cross-chain via the XCM precompile.
-          </p>
-        </div>
-
-        {/* Flow diagram */}
-        <div className="flex items-center gap-2 text-xs shrink-0">
-          <div className="px-3 py-2 rounded-lg bg-surface-2 border border-white/10 text-center">
-            <Layers className="w-4 h-4 text-polkadot-pink mx-auto mb-1" />
-            <span className="text-gray-300 font-medium">Hub EVM</span>
-          </div>
-          <div className="flex flex-col items-center gap-0.5">
-            <ArrowRight className="w-4 h-4 text-polkadot-purple" />
-            <span className="text-[9px] text-polkadot-purple font-medium">XCM V5</span>
-          </div>
-          <div className="px-3 py-2 rounded-lg bg-surface-2 border border-white/10 text-center">
-            <Globe className="w-4 h-4 text-polkadot-purple mx-auto mb-1" />
-            <span className="text-gray-300 font-medium">Relay Chain</span>
-          </div>
-          {totalRelayed !== undefined && Number(totalRelayed) > 0 && (
-            <div className="ml-3 px-3 py-2 rounded-lg bg-polkadot-purple/10 border border-polkadot-purple/20 text-center">
-              <p className="text-lg font-bold text-white">{totalRelayed.toString()}</p>
-              <span className="text-gray-400">relayed</span>
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ─── Cross-VM Architecture Banner ───
-
-function CrossVMBanner() {
+function ArchitectureSection() {
   const { data: pvmCodecEnabled } = useReadContract({
     address: ADDRESSES.xcmRelay,
     abi: PVM_STATUS_ABI,
@@ -255,57 +148,76 @@ function CrossVMBanner() {
     functionName: "usePVMScorer",
   });
 
-  return (
-    <div className="my-8 p-6 rounded-2xl bg-gradient-to-r from-cyan-500/5 via-surface-1 to-polkadot-purple/5 border border-cyan-500/20 relative overflow-hidden">
-      <div className="absolute top-0 left-0 w-48 h-48 bg-cyan-500/5 rounded-full blur-3xl -translate-y-1/2 -translate-x-1/2" />
-      <div className="relative z-10">
-        <div className="flex flex-col lg:flex-row items-start lg:items-center gap-6">
-          <div className="flex-1">
-            <div className="flex items-center gap-2 mb-2">
-              <Cpu className="w-5 h-5 text-cyan-400" />
-              <h3 className="text-lg font-bold text-white">
-                Cross-VM Architecture
-              </h3>
-              <span className="px-2 py-0.5 rounded-full bg-cyan-500/10 border border-cyan-500/20 text-[10px] text-cyan-400 font-bold uppercase">
-                Track 2 &middot; PVM
-              </span>
-            </div>
-            <p className="text-sm text-gray-400 max-w-lg">
-              Rust PVM contracts run on RISC-V alongside EVM. Solidity calls Rust
-              via pallet-revive cross-VM dispatch &mdash; no bridge, same chain.
-            </p>
-          </div>
+  const { data: relayEnabled } = useReadContract({
+    address: ADDRESSES.xcmRelay,
+    abi: XCM_RELAY_ABI,
+    functionName: "relayEnabled",
+  });
 
-          {/* Cross-VM flow diagram */}
-          <div className="flex items-center gap-1.5 text-xs shrink-0">
-            <div className="px-3 py-2.5 rounded-lg bg-surface-2 border border-white/10 text-center min-w-[80px]">
-              <Layers className="w-4 h-4 text-polkadot-pink mx-auto mb-1" />
-              <span className="text-gray-300 font-medium block">EVM</span>
-              <span className="text-[9px] text-gray-500">Solidity</span>
-            </div>
-            <div className="flex flex-col items-center gap-0.5">
-              <ArrowRightLeft className="w-4 h-4 text-cyan-400" />
-              <span className="text-[9px] text-cyan-400 font-medium">cross-VM</span>
-            </div>
-            <div className="px-3 py-2.5 rounded-lg bg-surface-2 border border-cyan-500/20 text-center min-w-[80px]">
-              <Cpu className="w-4 h-4 text-cyan-400 mx-auto mb-1" />
-              <span className="text-gray-300 font-medium block">PVM</span>
-              <span className="text-[9px] text-gray-500">Rust RISC-V</span>
-            </div>
-            <div className="flex flex-col items-center gap-0.5">
-              <ArrowRight className="w-4 h-4 text-polkadot-purple" />
-              <span className="text-[9px] text-polkadot-purple font-medium">XCM</span>
-            </div>
-            <div className="px-3 py-2.5 rounded-lg bg-surface-2 border border-white/10 text-center min-w-[80px]">
-              <Globe className="w-4 h-4 text-polkadot-purple mx-auto mb-1" />
-              <span className="text-gray-300 font-medium block">Relay</span>
-              <span className="text-[9px] text-gray-500">Vote</span>
-            </div>
+  const { data: totalRelayed } = useReadContract({
+    address: ADDRESSES.xcmRelay,
+    abi: XCM_RELAY_ABI,
+    functionName: "totalRelayedVotes",
+  });
+
+  const { data: analysisCount } = useReadContract({
+    address: ADDRESSES.aiOracle,
+    abi: AI_ORACLE_ABI,
+    functionName: "getAnalyzedReferendaCount",
+  });
+
+  return (
+    <div className="py-16">
+      <div className="text-center mb-12">
+        <h2 className="text-3xl font-bold text-white mb-3">Architecture</h2>
+        <p className="text-gray-400 max-w-lg mx-auto">
+          Built on Polkadot Hub with EVM + PVM cross-VM and XCM cross-chain capabilities.
+        </p>
+      </div>
+
+      {/* Live stats */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-10">
+        {[
+          { label: "AI Analyses", value: analysisCount ? Number(analysisCount) : 0, color: "text-polkadot-pink" },
+          { label: "XCM Relayed", value: totalRelayed ? Number(totalRelayed) : 0, color: "text-polkadot-purple" },
+          { label: "Relay Status", value: relayEnabled ? "Live" : "Ready", color: "text-emerald-400" },
+          { label: "PVM Modules", value: `${(pvmCodecEnabled ? 1 : 0) + (pvmScorerEnabled ? 1 : 0)}/2`, color: "text-cyan-400" },
+        ].map(({ label, value, color }) => (
+          <div key={label} className="p-4 rounded-xl bg-surface-1/50 border border-white/5 text-center">
+            <p className={`text-2xl font-bold ${color}`}>{value}</p>
+            <p className="text-xs text-gray-500 mt-1">{label}</p>
           </div>
+        ))}
+      </div>
+
+      {/* Cross-VM + XCM flow */}
+      <div className="p-6 rounded-2xl bg-surface-1/30 border border-white/5">
+        <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-6 text-center">
+          Vote Execution Pipeline
+        </h3>
+        <div className="flex flex-wrap items-center justify-center gap-3 text-xs">
+          {[
+            { icon: Code2, label: "GovMindCore", sub: "EVM Solidity", color: "border-polkadot-pink/30", iconColor: "text-polkadot-pink" },
+            { icon: Cpu, label: "AlignmentScorer", sub: "PVM Rust · 690B", color: "border-cyan-500/30", iconColor: "text-cyan-400" },
+            { icon: Cpu, label: "ScaleCodecPVM", sub: "PVM Rust · 1,523B", color: "border-cyan-500/30", iconColor: "text-cyan-400" },
+            { icon: Layers, label: "XCM Precompile", sub: "0x0A0000", color: "border-polkadot-purple/30", iconColor: "text-polkadot-purple" },
+            { icon: Globe, label: "Relay Chain", sub: "convictionVoting", color: "border-emerald-500/30", iconColor: "text-emerald-400" },
+          ].map(({ icon: Icon, label, sub, color, iconColor }, i, arr) => (
+            <div key={label} className="flex items-center gap-3">
+              <div className={`px-4 py-3 rounded-xl bg-surface-2 border ${color} text-center min-w-[100px]`}>
+                <Icon className={`w-5 h-5 ${iconColor} mx-auto mb-1.5`} />
+                <span className="text-gray-300 font-medium block">{label}</span>
+                <span className="text-[10px] text-gray-500">{sub}</span>
+              </div>
+              {i < arr.length - 1 && (
+                <ArrowRight className="w-4 h-4 text-gray-600 shrink-0" />
+              )}
+            </div>
+          ))}
         </div>
 
-        {/* PVM contract status pills */}
-        <div className="mt-4 flex flex-wrap gap-3">
+        {/* PVM status pills */}
+        <div className="mt-6 flex flex-wrap justify-center gap-3">
           <div className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-[11px] ${
             pvmCodecEnabled
               ? "bg-cyan-500/10 border border-cyan-500/20"
@@ -316,8 +228,6 @@ function CrossVMBanner() {
             <span className={`font-medium ${pvmCodecEnabled ? "text-cyan-400" : "text-gray-500"}`}>
               {pvmCodecEnabled ? "Active" : "Deployed"}
             </span>
-            <span className="text-gray-600">&middot;</span>
-            <span className="text-gray-500">1,523 bytes</span>
           </div>
           <div className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-[11px] ${
             pvmScorerEnabled
@@ -329,8 +239,6 @@ function CrossVMBanner() {
             <span className={`font-medium ${pvmScorerEnabled ? "text-cyan-400" : "text-gray-500"}`}>
               {pvmScorerEnabled ? "Active" : "Deployed"}
             </span>
-            <span className="text-gray-600">&middot;</span>
-            <span className="text-gray-500">690 bytes</span>
           </div>
         </div>
       </div>
@@ -338,299 +246,165 @@ function CrossVMBanner() {
   );
 }
 
-// ─── Search & Filter Bar ───
+// ─── Features Grid ───
 
-interface FiltersProps {
-  search: string;
-  onSearchChange: (v: string) => void;
-  track: string;
-  onTrackChange: (v: string) => void;
-  status: string;
-  onStatusChange: (v: string) => void;
-  onRefresh: () => void;
-  loading: boolean;
-}
-
-function SearchFilterBar({
-  search, onSearchChange,
-  track, onTrackChange,
-  status, onStatusChange,
-  onRefresh, loading,
-}: FiltersProps) {
-  return (
-    <div className="flex flex-col sm:flex-row gap-3 mb-6">
-      {/* Search */}
-      <div className="relative flex-1">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
-        <input
-          type="text"
-          placeholder="Search proposals by title, ID, or proposer..."
-          value={search}
-          onChange={(e) => onSearchChange(e.target.value)}
-          className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-surface-2 border border-white/10 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-polkadot-pink/40 transition-colors"
-        />
-      </div>
-
-      {/* Track Filter */}
-      <div className="relative">
-        <Filter className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-500" />
-        <select
-          value={track}
-          onChange={(e) => onTrackChange(e.target.value)}
-          className="appearance-none pl-9 pr-8 py-2.5 rounded-xl bg-surface-2 border border-white/10 text-sm text-white focus:outline-none focus:border-polkadot-pink/40 transition-colors cursor-pointer"
-        >
-          <option value="all">All Tracks</option>
-          {Object.entries(TRACK_NAMES).map(([id, name]) => (
-            <option key={id} value={id}>{name}</option>
-          ))}
-        </select>
-        <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-500 pointer-events-none" />
-      </div>
-
-      {/* Status Filter */}
-      <div className="relative">
-        <select
-          value={status}
-          onChange={(e) => onStatusChange(e.target.value)}
-          className="appearance-none pl-4 pr-8 py-2.5 rounded-xl bg-surface-2 border border-white/10 text-sm text-white focus:outline-none focus:border-polkadot-pink/40 transition-colors cursor-pointer"
-        >
-          <option value="all">All Status</option>
-          <option value="votable">Votable (Deciding + Confirming)</option>
-          <option value="Deciding">Deciding</option>
-          <option value="Confirming">Confirming</option>
-          <option value="Approved">Approved</option>
-          <option value="Rejected">Rejected</option>
-          <option value="Cancelled">Cancelled</option>
-          <option value="TimedOut">Timed Out</option>
-        </select>
-        <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-500 pointer-events-none" />
-      </div>
-
-      {/* Refresh */}
-      <button
-        onClick={onRefresh}
-        disabled={loading}
-        className="px-3 py-2.5 rounded-xl bg-surface-2 border border-white/10 text-gray-400 hover:text-white hover:border-polkadot-pink/40 transition-colors disabled:opacity-50"
-        title="Refresh proposals"
-      >
-        <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
-      </button>
-    </div>
-  );
-}
-
-// ─── Proposals Section ───
-
-function ProposalsSection() {
-  const [referenda, setReferenda] = useState<ReferendumListing[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [page, setPage] = useState(1);
-  const [total, setTotal] = useState(0);
-  const [hasMore, setHasMore] = useState(true);
-
-  // Filters
-  const [search, setSearch] = useState("");
-  const [trackFilter, setTrackFilter] = useState("all");
-  const [statusFilter, setStatusFilter] = useState("all");
-
-  const LIMIT = 24;
-  const [debouncedSearch, setDebouncedSearch] = useState("");
-  const debounceRef = useRef<NodeJS.Timeout | null>(null);
-
-  // Votable states: proposals users can still vote on
-  const VOTABLE_STATES = new Set(["Deciding", "Confirming"]);
-
-  // Debounce search input (400ms)
-  useEffect(() => {
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => {
-      setDebouncedSearch(search);
-    }, 400);
-    return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
-  }, [search]);
-
-  const fetchReferenda = useCallback(async (pageNum: number, append = false) => {
-    setLoading(true);
-    setError(null);
-    try {
-      const fetchLimit = statusFilter !== "all" ? LIMIT * 3 : LIMIT;
-      const params = new URLSearchParams({
-        page: String(pageNum),
-        limit: String(fetchLimit),
-      });
-      if (trackFilter !== "all") params.set("track", trackFilter);
-      if (debouncedSearch.trim()) params.set("search", debouncedSearch.trim());
-
-      const res = await fetch(`/api/referenda?${params}`);
-      if (!res.ok) throw new Error("Failed to fetch");
-      const data = await res.json();
-
-      let items: ReferendumListing[] = data.referenda || [];
-
-      // Client-side status filtering (Polkassembly doesn't support server-side)
-      if (statusFilter === "votable") {
-        items = items.filter((r) => VOTABLE_STATES.has(r.state));
-      } else if (statusFilter !== "all") {
-        items = items.filter((r) => r.state === statusFilter);
-      }
-
-      if (append) {
-        setReferenda((prev) => {
-          const existing = new Set(prev.map((r) => r.referendumIndex));
-          return [...prev, ...items.filter((r) => !existing.has(r.referendumIndex))];
-        });
-      } else {
-        setReferenda(items);
-      }
-      setTotal(data.total || items.length);
-      // Hide "load more" for direct ID lookups or when search returned filtered results
-      setHasMore(!data.directLookup && items.length > 0 && (data.referenda || []).length === fetchLimit);
-    } catch {
-      setError("Failed to load proposals from Polkassembly. Using on-chain data only.");
-      if (!append) setReferenda([]);
-    } finally {
-      setLoading(false);
-    }
-  }, [trackFilter, statusFilter, debouncedSearch]);
-
-  // Fetch on mount and when filters/search change
-  useEffect(() => {
-    setPage(1);
-    fetchReferenda(1);
-  }, [fetchReferenda]);
-
-  const loadMore = () => {
-    const nextPage = page + 1;
-    setPage(nextPage);
-    fetchReferenda(nextPage, true);
-  };
-
-  // On-chain analyzed count
-  const { data: analysisCount } = useReadContract({
-    address: ADDRESSES.aiOracle,
-    abi: AI_ORACLE_ABI,
-    functionName: "getAnalyzedReferendaCount",
-  });
-  const count = analysisCount ? Number(analysisCount) : 0;
-
-  const filtered = referenda;
+function FeaturesGrid() {
+  const features = [
+    {
+      icon: Brain,
+      title: "AI Oracle",
+      desc: "On-chain AI analysis with risk scores, category detection, and personalized alignment recommendations stored immutably.",
+      color: "from-polkadot-pink/20 to-polkadot-purple/20",
+      iconColor: "text-polkadot-pink",
+    },
+    {
+      icon: Fingerprint,
+      title: "Governance Identity",
+      desc: "6-axis identity profile that captures your governance philosophy — used by the AI to match proposals to your values.",
+      color: "from-polkadot-purple/20 to-blue-500/20",
+      iconColor: "text-polkadot-purple",
+    },
+    {
+      icon: Globe,
+      title: "XCM Cross-Chain Voting",
+      desc: "Vote on Polkadot Relay Chain referenda directly from Hub EVM. SCALE-encoded, XCM V5 wrapped, and relayed cross-chain.",
+      color: "from-polkadot-purple/20 to-emerald-500/20",
+      iconColor: "text-polkadot-purple",
+    },
+    {
+      icon: Cpu,
+      title: "Cross-VM (EVM + PVM)",
+      desc: "Rust PVM contracts for SCALE encoding and alignment scoring run on RISC-V alongside EVM via pallet-revive cross-VM dispatch.",
+      color: "from-cyan-500/20 to-polkadot-purple/20",
+      iconColor: "text-cyan-400",
+    },
+    {
+      icon: ShieldCheck,
+      title: "On-Chain Proofs",
+      desc: "Every AI analysis is stored on-chain with its hash, ensuring full transparency and auditability of all recommendations.",
+      color: "from-emerald-500/20 to-cyan-500/20",
+      iconColor: "text-emerald-400",
+    },
+    {
+      icon: BarChart3,
+      title: "Risk Scoring",
+      desc: "Each proposal gets a 0-100 risk score with category breakdown — treasury impact, technical complexity, governance weight.",
+      color: "from-amber-500/20 to-polkadot-pink/20",
+      iconColor: "text-amber-400",
+    },
+  ];
 
   return (
-    <div id="proposals" className="mt-10">
-      <div className="flex items-center justify-between mb-4">
-        <div>
-          <h2 className="text-xl font-bold text-white">Polkadot OpenGov Proposals</h2>
-          <p className="text-sm text-gray-500 mt-1">
-            Browse, search, and analyze referenda from Polkadot governance
-          </p>
-        </div>
-        <div className="flex items-center gap-3">
-          {total > 0 && (
-            <span className="text-xs text-gray-500">
-              {total} referenda
-            </span>
-          )}
-          {count > 0 && (
-            <span className="flex items-center gap-1.5 text-xs text-emerald-400">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 live-dot" />
-              {count} AI analyzed
-            </span>
-          )}
-        </div>
+    <div className="py-16">
+      <div className="text-center mb-12">
+        <h2 className="text-3xl font-bold text-white mb-3">Features</h2>
+        <p className="text-gray-400 max-w-lg mx-auto">
+          Everything you need to participate in Polkadot governance intelligently.
+        </p>
       </div>
 
-      <SearchFilterBar
-        search={search}
-        onSearchChange={setSearch}
-        track={trackFilter}
-        onTrackChange={setTrackFilter}
-        status={statusFilter}
-        onStatusChange={setStatusFilter}
-        onRefresh={() => { setPage(1); fetchReferenda(1); }}
-        loading={loading}
-      />
-
-      {error && (
-        <div className="mb-4 p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-xs text-amber-400">
-          {error}
-        </div>
-      )}
-
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-        {filtered.map((r) => (
-          <ProposalCard
-            key={r.referendumIndex}
-            referendumIndex={r.referendumIndex}
-            title={r.title}
-            track={r.track}
-            proposer={r.proposer}
-            state={r.state}
-            createdAt={r.createdAt}
-          />
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {features.map(({ icon: Icon, title, desc, color, iconColor }) => (
+          <div key={title} className="p-6 rounded-2xl bg-surface-1/50 border border-white/5 hover:border-white/10 transition-colors">
+            <div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${color} flex items-center justify-center mb-4`}>
+              <Icon className={`w-6 h-6 ${iconColor}`} />
+            </div>
+            <h3 className="text-base font-semibold text-white mb-2">{title}</h3>
+            <p className="text-sm text-gray-500 leading-relaxed">{desc}</p>
+          </div>
         ))}
       </div>
-
-      {/* Loading state */}
-      {loading && referenda.length === 0 && (
-        <div className="glass-card p-12 text-center">
-          <Loader2 className="w-8 h-8 text-polkadot-pink mx-auto mb-4 animate-spin" />
-          <p className="text-sm text-gray-400">Loading proposals from Polkassembly...</p>
-        </div>
-      )}
-
-      {/* Empty state */}
-      {!loading && filtered.length === 0 && (
-        <div className="glass-card p-12 text-center">
-          <Brain className="w-12 h-12 text-gray-600 mx-auto mb-4" />
-          <h3 className="text-lg font-semibold text-gray-400 mb-2">
-            {search ? "No matching proposals" : "No proposals found"}
-          </h3>
-          <p className="text-sm text-gray-500">
-            {search
-              ? "Try adjusting your search or filters"
-              : "Check back later for new referenda"}
-          </p>
-        </div>
-      )}
-
-      {/* Load more */}
-      {hasMore && filtered.length > 0 && !loading && (
-        <div className="mt-8 text-center">
-          <button
-            onClick={loadMore}
-            className="px-6 py-2.5 rounded-xl bg-surface-2 border border-white/10 text-sm text-gray-300 hover:text-white hover:border-polkadot-pink/40 transition-colors inline-flex items-center gap-2"
-          >
-            {loading ? (
-              <Loader2 className="w-4 h-4 animate-spin" />
-            ) : (
-              <>Load More Proposals</>
-            )}
-          </button>
-        </div>
-      )}
-
-      {/* Loading more indicator */}
-      {loading && referenda.length > 0 && (
-        <div className="mt-6 text-center">
-          <Loader2 className="w-5 h-5 text-polkadot-pink mx-auto animate-spin" />
-        </div>
-      )}
     </div>
   );
 }
 
-// ─── Main Dashboard ───
+// ─── Smart Contracts Section ───
 
-export default function Dashboard() {
+function ContractsSection() {
+  const contracts = [
+    { name: "GovMindCore", addr: ADDRESSES.govMindCore, type: "EVM" },
+    { name: "AIOracle", addr: ADDRESSES.aiOracle, type: "EVM" },
+    { name: "IdentityVault", addr: ADDRESSES.identityVault, type: "EVM" },
+    { name: "XCMRelay", addr: ADDRESSES.xcmRelay, type: "EVM" },
+    { name: "ScaleCodecPVM", addr: ADDRESSES.scaleCodecPVM, type: "PVM" },
+    { name: "AlignmentScorerPVM", addr: ADDRESSES.alignmentScorerPVM, type: "PVM" },
+  ];
+
+  return (
+    <div className="py-16">
+      <div className="text-center mb-8">
+        <h2 className="text-3xl font-bold text-white mb-3">Deployed Contracts</h2>
+        <p className="text-gray-400 max-w-lg mx-auto">
+          All contracts are live on Polkadot Hub Testnet (Chain ID 420420417).
+        </p>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-w-3xl mx-auto">
+        {contracts.map(({ name, addr, type }) => (
+          <div key={name} className="flex items-center gap-3 p-3 rounded-xl bg-surface-1/50 border border-white/5">
+            <div className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+              type === "PVM"
+                ? "bg-cyan-500/10 text-cyan-400 border border-cyan-500/20"
+                : "bg-polkadot-pink/10 text-polkadot-pink border border-polkadot-pink/20"
+            }`}>
+              {type}
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-white">{name}</p>
+              <p className="text-[11px] text-gray-500 truncate font-mono">{addr}</p>
+            </div>
+            <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ─── CTA Section ───
+
+function CTASection() {
+  const { isConnected } = useAccount();
+
+  return (
+    <div className="py-16 text-center">
+      <div className="p-10 rounded-2xl bg-gradient-to-r from-polkadot-pink/10 via-surface-1 to-polkadot-purple/10 border border-polkadot-pink/20">
+        <Zap className="w-10 h-10 text-polkadot-pink mx-auto mb-4" />
+        <h2 className="text-2xl font-bold text-white mb-3">
+          Ready to govern smarter?
+        </h2>
+        <p className="text-gray-400 mb-6 max-w-md mx-auto">
+          Set up your governance identity and start getting AI-powered recommendations
+          tailored to your values.
+        </p>
+        <div className="flex flex-wrap items-center justify-center gap-4">
+          <Link href="/proposals" className="btn-primary flex items-center gap-2 px-6 py-3">
+            <Vote className="w-5 h-5" />
+            Browse Proposals
+          </Link>
+          {isConnected && (
+            <Link href="/identity" className="btn-secondary flex items-center gap-2 px-6 py-3">
+              <Fingerprint className="w-5 h-5" />
+              Create Identity
+            </Link>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Home Page ───
+
+export default function HomePage() {
   return (
     <div>
       <HeroSection />
-      <StatsHero />
-      <XCMBanner />
-      <CrossVMBanner />
-      <IdentityBanner />
-      <ProposalsSection />
+      <HowItWorks />
+      <FeaturesGrid />
+      <ArchitectureSection />
+      <ContractsSection />
+      <CTASection />
     </div>
   );
 }
