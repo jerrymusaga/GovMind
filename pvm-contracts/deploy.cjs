@@ -24,10 +24,10 @@ const path = require("path");
 require("dotenv").config();
 
 // Contract addresses (update after EVM deployment)
-const XCM_RELAY_ADDRESS = process.env.XCM_RELAY_ADDRESS || "0x246DE6C6e938f70305B6919C94e4D103c0D7d45f";
-const GOVMIND_CORE_ADDRESS = process.env.GOVMIND_CORE_ADDRESS || "0x018aC1f307d6b2FD1426458Df4d32e306660398a";
+const XCM_RELAY_ADDRESS = process.env.XCM_RELAY_ADDRESS || "0x34a2f569D91561A583432F8DEC0055C4f811DB73";
+const GOVMIND_CORE_ADDRESS = process.env.GOVMIND_CORE_ADDRESS || "0x8DF87ba9728C42a5597e7398bC369B86c4D6386f";
 
-const RPC_URL = process.env.RPC_URL || "https://services.polkadothub-rpc.com/testnet";
+const RPC_URL = process.env.RPC_URL || "https://eth-rpc-testnet.polkadot.io/";
 
 // ABIs for the admin functions we need to call
 const XCM_RELAY_ABI = [
@@ -103,17 +103,25 @@ async function main() {
 
   // ── 3. Wire PVM SCALE Codec into XCMGovernanceRelay ────────────────
   console.log("\n  [3/4] Wiring ScaleCodecPVM into XCMGovernanceRelay...");
-  const xcmRelay = new ethers.Contract(XCM_RELAY_ADDRESS, XCM_RELAY_ABI, wallet);
-  const tx3 = await xcmRelay.setPVMCodec(scaleAddress, true);
-  await tx3.wait();
-  console.log(`      setPVMCodec(${scaleAddress}, true) — done`);
+  try {
+    const xcmRelay = new ethers.Contract(XCM_RELAY_ADDRESS, XCM_RELAY_ABI, wallet);
+    const tx3 = await xcmRelay.setPVMCodec(scaleAddress, true);
+    await tx3.wait();
+    console.log(`      setPVMCodec(${scaleAddress}, true) — done`);
+  } catch (e) {
+    console.log(`      Skipped (owner mismatch or contract not found). Wire manually.`);
+  }
 
   // ── 4. Wire PVM Alignment Scorer into GovMindCore ──────────────────
   console.log("\n  [4/4] Wiring AlignmentScorer into GovMindCore...");
-  const govMindCore = new ethers.Contract(GOVMIND_CORE_ADDRESS, GOVMIND_CORE_ABI, wallet);
-  const tx4 = await govMindCore.setPVMScorer(alignAddress, true);
-  await tx4.wait();
-  console.log(`      setPVMScorer(${alignAddress}, true) — done`);
+  try {
+    const govMindCore = new ethers.Contract(GOVMIND_CORE_ADDRESS, GOVMIND_CORE_ABI, wallet);
+    const tx4 = await govMindCore.setPVMScorer(alignAddress, true);
+    await tx4.wait();
+    console.log(`      setPVMScorer(${alignAddress}, true) — done`);
+  } catch (e) {
+    console.log(`      Skipped (owner mismatch or contract not found). Wire manually.`);
+  }
 
   // ── Summary ────────────────────────────────────────────────────────
   sep("PVM Deployment Complete");

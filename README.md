@@ -135,8 +135,8 @@ GovMind is an AI governance intelligence platform that makes OpenGov accessible 
 
 | Contract | Binary Size | Purpose |
 |----------|-------------|---------|
-| `ScaleCodecPVM` | 1,532 bytes | Native Rust SCALE encoding on RISC-V. Encodes `convictionVoting.vote()` calls with compact integers and fixed-width u128 LE. Called cross-VM from `XCMGovernanceRelay.sol`. |
-| `AlignmentScorer` | 692 bytes | Governance personalization engine on RISC-V. Computes 6-axis alignment scores, applies risk penalties, and returns personalized recommendations. Called cross-VM from `GovMindCore.sol`. |
+| `ScaleCodecPVM` | 1,523 bytes | Native Rust SCALE encoding on RISC-V. Encodes `convictionVoting.vote()` calls with compact integers and fixed-width u128 LE. Called cross-VM from `XCMGovernanceRelay.sol`. |
+| `AlignmentScorer` | 690 bytes | Governance personalization engine on RISC-V. Computes 6-axis alignment scores, applies risk penalties, and returns personalized recommendations. Called cross-VM from `GovMindCore.sol`. |
 
 Both PVM contracts are called transparently from EVM Solidity via **pallet-revive cross-VM dispatch** — no bridge, no XCM, just a regular contract call that routes across VMs.
 
@@ -208,7 +208,7 @@ XCMGovernanceRelay.relayVote()
     ├─ usePVMCodec == true?
     │   YES → scaleCodecPVM.encodeVoteCall(pollIndex, aye, conviction, balance)
     │         │                         ┌─────────────────────────────┐
-    │         └── cross-VM dispatch ──► │ ScaleCodecPVM (1,532 bytes) │
+    │         └── cross-VM dispatch ──► │ ScaleCodecPVM (1,523 bytes) │
     │                                   │  SCALE compact u32          │
     │                                   │  Vote byte (aye + conviction)│
     │                                   │  u128 LE balance            │
@@ -225,7 +225,7 @@ GovMindCore.getPersonalizedInsightPVM()
     │
     └─ alignmentScorerPVM.computeAlignment(w0..w5, risk, category, ...)
                                         ┌─────────────────────────────┐
-           cross-VM dispatch ─────────► │ AlignmentScorer (692 bytes) │
+           cross-VM dispatch ─────────► │ AlignmentScorer (690 bytes)  │
                                         │  6-axis alignment scoring   │
                                         │  Risk penalty calculation   │
                                         │  Recommendation adjustment  │
@@ -236,7 +236,7 @@ GovMindCore.getPersonalizedInsightPVM()
 **Why Rust PVM?**
 - **Native SCALE encoding** — Substrate's codec written in the language it was designed for
 - **Deterministic integer math** — No Solidity overflow quirks for governance scoring
-- **Tiny binaries** — 692 bytes and 1,532 bytes, smaller than most Solidity contracts
+- **Tiny binaries** — 690 bytes and 1,523 bytes, smaller than most Solidity contracts
 - **Togglable** — Admin can switch between EVM-only and cross-VM mode via `setPVMCodec()` / `setPVMScorer()`
 
 ---
@@ -264,19 +264,19 @@ GovMind integrates with Polkassembly's data layer (the same data powering [Klara
 
 | Contract | Address |
 |----------|---------|
-| IdentityVault | [`0x5DAdd67d21330153CaA2fF5dB3a0Ce96786f9eb8`](https://blockscout-testnet.polkadot.io/address/0x5DAdd67d21330153CaA2fF5dB3a0Ce96786f9eb8) |
-| AIOracle | [`0x628812BE85aC3fe49bfC6b3aD3F26d0097a07667`](https://blockscout-testnet.polkadot.io/address/0x628812BE85aC3fe49bfC6b3aD3F26d0097a07667) |
-| GovMindCore | [`0x018aC1f307d6b2FD1426458Df4d32e306660398a`](https://blockscout-testnet.polkadot.io/address/0x018aC1f307d6b2FD1426458Df4d32e306660398a) |
-| XCMGovernanceRelay | [`0x246DE6C6e938f70305B6919C94e4D103c0D7d45f`](https://blockscout-testnet.polkadot.io/address/0x246DE6C6e938f70305B6919C94e4D103c0D7d45f) |
+| IdentityVault | [`0x32F9f794b917AdC54b1708Df809a10386c81f07d`](https://blockscout-testnet.polkadot.io/address/0x32F9f794b917AdC54b1708Df809a10386c81f07d) |
+| AIOracle | [`0x7bD88Cd06d781B2cf39f509D0a7909160DcE95da`](https://blockscout-testnet.polkadot.io/address/0x7bD88Cd06d781B2cf39f509D0a7909160DcE95da) |
+| GovMindCore | [`0x8DF87ba9728C42a5597e7398bC369B86c4D6386f`](https://blockscout-testnet.polkadot.io/address/0x8DF87ba9728C42a5597e7398bC369B86c4D6386f) |
+| XCMGovernanceRelay | [`0x34a2f569D91561A583432F8DEC0055C4f811DB73`](https://blockscout-testnet.polkadot.io/address/0x34a2f569D91561A583432F8DEC0055C4f811DB73) |
 
-### PVM Contracts
+### PVM Contracts (Rust → RISC-V)
 
-| Contract | Status |
-|----------|--------|
-| ScaleCodecPVM | Ready to deploy (`pvm-contracts/build.sh` → `deploy.js`) |
-| AlignmentScorer | Ready to deploy (`pvm-contracts/build.sh` → `deploy.js`) |
+| Contract | Address | Binary Size |
+|----------|---------|-------------|
+| ScaleCodecPVM | [`0x9c0E4B07f26726d6646C8465cfA39f9662550cDb`](https://blockscout-testnet.polkadot.io/address/0x9c0E4B07f26726d6646C8465cfA39f9662550cDb) | 1,523 bytes |
+| AlignmentScorer | [`0x60B9D9D2097963ADf51Cf6c1E1b80309c2959238`](https://blockscout-testnet.polkadot.io/address/0x60B9D9D2097963ADf51Cf6c1E1b80309c2959238) | 690 bytes |
 
-**Network:** Polkadot Hub Testnet | **Chain ID:** `420420417` | **RPC:** `https://services.polkadothub-rpc.com/testnet`
+**Network:** Polkadot Hub Testnet | **Chain ID:** `420420417` | **RPC:** `https://eth-rpc-testnet.polkadot.io/`
 
 **Explorer:** [Blockscout](https://blockscout-testnet.polkadot.io) | **Faucet:** [faucet.polkadot.io](https://faucet.polkadot.io)
 
@@ -296,8 +296,8 @@ forge script script/Deploy.s.sol --rpc-url https://services.polkadothub-rpc.com/
 # PVM Smart Contracts (Track 2)
 # Requires: rustup with nightly-2024-11-19, polkatool
 cd pvm-contracts
-./build.sh                     # Builds ScaleCodecPVM (1,532 bytes) + AlignmentScorer (692 bytes)
-node deploy.js                 # Deploys PVM binaries and wires into EVM contracts
+./build.sh                     # Builds ScaleCodecPVM (1,523 bytes) + AlignmentScorer (690 bytes)
+node deploy.cjs                # Deploys PVM binaries and wires into EVM contracts
 
 # AI Backend
 cd backend && npm install
