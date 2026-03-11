@@ -1,25 +1,16 @@
 //! SCALE Codec PVM Contract — Native Substrate encoding on RISC-V
 //!
-//! This contract provides SCALE encoding functions that can be called
-//! from Solidity EVM contracts via pallet-revive's cross-VM dispatch.
+//! Provides SCALE encoding functions called from Solidity EVM contracts
+//! via pallet-revive's cross-VM dispatch. No bridge. No XCM. One call.
 //!
 //! Exposed functions (Ethereum ABI):
-//!   encodeVoteCall(uint32 pollIndex, bool aye, uint8 conviction, uint128 balance)
-//!     → returns (bytes)
-//!   encodeCompactU32(uint32 value) → returns (bytes)
-//!   encodeU128LE(uint128 value) → returns (bytes)
-//!
-//! Function selectors:
-//!   encodeVoteCall:   keccak256("encodeVoteCall(uint32,bool,uint8,uint128)")[0:4]
-//!   encodeCompactU32: keccak256("encodeCompactU32(uint32)")[0:4]
-//!   encodeU128LE:     keccak256("encodeU128LE(uint128)")[0:4]
+//!   encodeVoteCall(uint32, bool, uint8, uint128) → bytes
+//!   encodeCompactU32(uint32) → bytes
+//!   encodeU128LE(uint128) → bytes
 
 #![no_std]
 #![no_main]
 
-extern crate alloc;
-
-use alloc::vec::Vec;
 use uapi::{input, HostFn, HostFnImpl as api, ReturnFlags};
 
 #[panic_handler]
@@ -27,175 +18,169 @@ fn panic(_info: &core::panic::PanicInfo) -> ! {
     unsafe { core::arch::asm!("unimp", options(noreturn)) }
 }
 
-// ============================================================
-//                    FUNCTION SELECTORS
-// ============================================================
-// Pre-computed keccak256 selectors (first 4 bytes)
-// encodeVoteCall(uint32,bool,uint8,uint128) = 0x6b8a5864
-const SELECTOR_ENCODE_VOTE_CALL: [u8; 4] = [0x6b, 0x8a, 0x58, 0x64];
-// encodeCompactU32(uint32) = 0x9c0c4be6
-const SELECTOR_ENCODE_COMPACT_U32: [u8; 4] = [0x9c, 0x0c, 0x4b, 0xe6];
-// encodeU128LE(uint128) = 0x7c5aa57d
-const SELECTOR_ENCODE_U128_LE: [u8; 4] = [0x7c, 0x5a, 0xa5, 0x7d];
-
-// ============================================================
-//                    ENTRY POINTS
-// ============================================================
+// Function selectors (pre-computed keccak256 first 4 bytes)
+const SEL_VOTE_CALL: [u8; 4] = [0x6b, 0x8a, 0x58, 0x64];
+const SEL_COMPACT_U32: [u8; 4] = [0x9c, 0x0c, 0x4b, 0xe6];
+const SEL_U128_LE: [u8; 4] = [0x7c, 0x5a, 0xa5, 0x7d];
 
 #[polkavm_derive::polkavm_export]
 extern "C" fn deploy() {}
 
 #[polkavm_derive::polkavm_export]
 extern "C" fn call() {
-    // Read up to 132 bytes of calldata:
-    // 4 selector + up to 4 x 32-byte args = 132
+    // 4 selector + 4 x 32-byte args = 132
     input!(buf: &[u8; 132],);
 
-    let selector: [u8; 4] = [buf[0], buf[1], buf[2], buf[3]];
+    let sel: [u8; 4] = [buf[0], buf[1], buf[2], buf[3]];
 
-    match selector {
-        SELECTOR_ENCODE_VOTE_CALL => handle_encode_vote_call(buf),
-        SELECTOR_ENCODE_COMPACT_U32 => handle_encode_compact_u32(buf),
-        SELECTOR_ENCODE_U128_LE => handle_encode_u128_le(buf),
-        _ => {
-            // Unknown selector — revert
-            unsafe { core::arch::asm!("unimp", options(noreturn)) }
-        }
+    match sel {
+        SEL_VOTE_CALL => handle_encode_vote_call(buf),
+        SEL_COMPACT_U32 => handle_encode_compact_u32(buf),
+        SEL_U128_LE => handle_encode_u128_le(buf),
+        _ => unsafe { core::arch::asm!("unimp", options(noreturn)) },
     }
 }
 
 // ============================================================
-//                    HANDLERS
+//  HANDLER: encodeVoteCall(uint32, bool, uint8, uint128)
 // ============================================================
 
-/// encodeVoteCall(uint32 pollIndex, bool aye, uint8 conviction, uint128 balance)
-/// ABI layout:
-///   bytes  4..36:  pollIndex (uint32, right-aligned in 32 bytes)
-///   bytes 36..68:  aye (bool, right-aligned)
-///   bytes 68..100: conviction (uint8, right-aligned)
-///   bytes 100..132: balance (uint128, right-aligned)
 fn handle_encode_vote_call(buf: &[u8; 132]) {
     let poll_index = read_u32(buf, 4);
     let aye = buf[67] != 0;
     let conviction = buf[99];
     let balance = read_u128(buf, 100);
 
-    // SCALE-encode convictionVoting.vote() call
-    let mut result = Vec::new();
+    // Max encoded size: 2 + 4 + 1 + 1 + 16 = 24 bytes
+    let mut data = [0u8; 24];
+    let mut pos: usize = 0;
 
     // Pallet index: 20 (convictionVoting)
-    result.push(20u8);
+    data[pos] = 20;
+    pos += 1;
     // Call index: 0 (vote)
-    result.push(0u8);
+    data[pos] = 0;
+    pos += 1;
     // poll_index as SCALE compact u32
-    encode_compact_u32_into(poll_index, &mut result);
+    pos += write_compact_u32(poll_index, &mut data, pos);
     // AccountVote::Standard variant = 0x00
-    result.push(0x00);
+    data[pos] = 0x00;
+    pos += 1;
     // Vote byte: bit 7 = aye, bits 0-6 = conviction
-    let vote_byte = conviction | if aye { 0x80 } else { 0x00 };
-    result.push(vote_byte);
-    // Balance as fixed-width u128 LE
-    encode_u128_le_into(balance, &mut result);
+    data[pos] = conviction | if aye { 0x80 } else { 0x00 };
+    pos += 1;
+    // Balance as fixed-width u128 LE (16 bytes)
+    write_u128_le(balance, &mut data, pos);
+    pos += 16;
 
-    return_bytes(&result);
+    return_bytes(&data[..pos]);
 }
 
-/// encodeCompactU32(uint32 value)
-/// ABI layout:
-///   bytes 4..36: value (uint32, right-aligned)
+// ============================================================
+//  HANDLER: encodeCompactU32(uint32)
+// ============================================================
+
 fn handle_encode_compact_u32(buf: &[u8; 132]) {
     let value = read_u32(buf, 4);
-    let mut result = Vec::new();
-    encode_compact_u32_into(value, &mut result);
-    return_bytes(&result);
+    let mut data = [0u8; 4];
+    let len = write_compact_u32(value, &mut data, 0);
+    return_bytes(&data[..len]);
 }
 
-/// encodeU128LE(uint128 value)
-/// ABI layout:
-///   bytes 4..36: value (uint128, right-aligned in 32 bytes)
+// ============================================================
+//  HANDLER: encodeU128LE(uint128)
+// ============================================================
+
 fn handle_encode_u128_le(buf: &[u8; 132]) {
     let value = read_u128(buf, 4);
-    let mut result = Vec::new();
-    encode_u128_le_into(value, &mut result);
-    return_bytes(&result);
+    let mut data = [0u8; 16];
+    write_u128_le(value, &mut data, 0);
+    return_bytes(&data);
 }
 
 // ============================================================
-//                    SCALE ENCODING
+//  SCALE ENCODING FUNCTIONS
 // ============================================================
 
-/// SCALE compact encoding for u32
-/// 0-63:         single byte,  val << 2 | 0b00
-/// 64-16383:     two bytes,    val << 2 | 0b01
-/// 16384-2^30-1: four bytes,   val << 2 | 0b10
-fn encode_compact_u32_into(value: u32, out: &mut Vec<u8>) {
+/// SCALE compact u32 encoding. Returns number of bytes written.
+fn write_compact_u32(value: u32, out: &mut [u8], pos: usize) -> usize {
     if value <= 63 {
-        out.push((value as u8) << 2);
+        out[pos] = (value as u8) << 2;
+        1
     } else if value <= 16383 {
         let encoded = ((value as u16) << 2) | 0x01;
-        out.push((encoded & 0xFF) as u8);
-        out.push((encoded >> 8) as u8);
+        out[pos] = (encoded & 0xFF) as u8;
+        out[pos + 1] = (encoded >> 8) as u8;
+        2
     } else {
         let encoded = (value << 2) | 0x02;
-        out.push((encoded & 0xFF) as u8);
-        out.push(((encoded >> 8) & 0xFF) as u8);
-        out.push(((encoded >> 16) & 0xFF) as u8);
-        out.push(((encoded >> 24) & 0xFF) as u8);
+        out[pos] = (encoded & 0xFF) as u8;
+        out[pos + 1] = ((encoded >> 8) & 0xFF) as u8;
+        out[pos + 2] = ((encoded >> 16) & 0xFF) as u8;
+        out[pos + 3] = ((encoded >> 24) & 0xFF) as u8;
+        4
     }
 }
 
-/// Fixed-width u128 little-endian encoding (16 bytes)
-fn encode_u128_le_into(value: u128, out: &mut Vec<u8>) {
+/// Fixed-width u128 LE encoding (16 bytes)
+fn write_u128_le(value: u128, out: &mut [u8], pos: usize) {
     let bytes = value.to_le_bytes();
-    out.extend_from_slice(&bytes);
+    let mut i = 0;
+    while i < 16 {
+        out[pos + i] = bytes[i];
+        i += 1;
+    }
 }
 
 // ============================================================
-//                    ABI HELPERS
+//  ABI HELPERS
 // ============================================================
 
-/// Read a uint32 from ABI-encoded calldata (right-aligned in 32-byte slot)
 fn read_u32(buf: &[u8], offset: usize) -> u32 {
-    let b = &buf[offset + 28..offset + 32];
-    u32::from_be_bytes([b[0], b[1], b[2], b[3]])
-}
-
-/// Read a uint128 from ABI-encoded calldata (right-aligned in 32-byte slot)
-fn read_u128(buf: &[u8], offset: usize) -> u128 {
-    let b = &buf[offset + 16..offset + 32];
-    u128::from_be_bytes([
-        b[0], b[1], b[2], b[3], b[4], b[5], b[6], b[7],
-        b[8], b[9], b[10], b[11], b[12], b[13], b[14], b[15],
+    u32::from_be_bytes([
+        buf[offset + 28],
+        buf[offset + 29],
+        buf[offset + 30],
+        buf[offset + 31],
     ])
 }
 
-/// Return dynamic bytes via ABI encoding
-/// ABI encoding for `bytes`:
-///   offset (32 bytes) = 0x20 (points to data start)
-///   length (32 bytes) = data.len()
-///   data   (padded to 32-byte boundary)
+fn read_u128(buf: &[u8], offset: usize) -> u128 {
+    u128::from_be_bytes([
+        buf[offset + 16], buf[offset + 17], buf[offset + 18], buf[offset + 19],
+        buf[offset + 20], buf[offset + 21], buf[offset + 22], buf[offset + 23],
+        buf[offset + 24], buf[offset + 25], buf[offset + 26], buf[offset + 27],
+        buf[offset + 28], buf[offset + 29], buf[offset + 30], buf[offset + 31],
+    ])
+}
+
+/// ABI-encode `bytes` return value using a fixed buffer.
+/// Layout: offset(32) + length(32) + data(padded to 32)
+/// Max data size we handle: 24 bytes → fits in 32-byte pad = 96 bytes total
 fn return_bytes(data: &[u8]) {
-    let padded_len = (data.len() + 31) & !31; // round up to 32
-    let total = 32 + 32 + padded_len;         // offset + length + padded data
+    let data_len = data.len();
+    let padded_len = (data_len + 31) & !31;
+    // Total output: 32 (offset) + 32 (length) + padded_len
+    // Max: 32 + 32 + 32 = 96
+    let mut output = [0u8; 96];
 
-    let mut output = Vec::with_capacity(total);
+    // Offset: 0x20 (32 in big-endian u256)
+    output[31] = 0x20;
 
-    // Offset: 0x0000...0020 (32 bytes, big-endian)
-    let mut offset_bytes = [0u8; 32];
-    offset_bytes[31] = 0x20;
-    output.extend_from_slice(&offset_bytes);
-
-    // Length: data.len() (32 bytes, big-endian)
-    let mut len_bytes = [0u8; 32];
-    let len = data.len() as u64;
-    len_bytes[24..32].copy_from_slice(&len.to_be_bytes());
-    output.extend_from_slice(&len_bytes);
-
-    // Data (padded with zeros)
-    output.extend_from_slice(data);
-    for _ in 0..(padded_len - data.len()) {
-        output.push(0);
+    // Length: data_len (big-endian u256)
+    output[63] = data_len as u8;
+    if data_len > 255 {
+        output[62] = (data_len >> 8) as u8;
     }
 
-    api::return_value(ReturnFlags::empty(), &output);
+    // Data bytes
+    let mut i = 0;
+    while i < data_len {
+        output[64 + i] = data[i];
+        i += 1;
+    }
+    // Rest is already zero-padded
+
+    let total = 64 + padded_len;
+    api::return_value(ReturnFlags::empty(), &output[..total]);
 }
