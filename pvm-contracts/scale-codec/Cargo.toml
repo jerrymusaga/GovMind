@@ -6,7 +6,7 @@ publish = false
 
 [[bin]]
 name = "scale-codec-pvm"
-path = "src/lib.rs"
+path = "src/scale_codec.rs"
 
 [dependencies]
 polkavm-derive = "0.25.0"

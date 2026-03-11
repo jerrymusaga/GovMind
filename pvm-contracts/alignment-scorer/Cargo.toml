@@ -6,7 +6,7 @@ publish = false
 
 [[bin]]
 name = "alignment-scorer"
-path = "src/lib.rs"
+path = "src/alignment_scorer.rs"
 
 [dependencies]
 polkavm-derive = "0.25.0"
