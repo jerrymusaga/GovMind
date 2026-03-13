@@ -4,13 +4,14 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { ConnectButton } from "@rainbow-me/rainbowkit";
 import { useAccount } from "wagmi";
-import { Brain, LayoutDashboard, Fingerprint, Vote, Menu, X } from "lucide-react";
+import { Brain, LayoutDashboard, Fingerprint, Vote, Users, Menu, X } from "lucide-react";
 import { useState } from "react";
 import clsx from "clsx";
 
 const NAV_ITEMS = [
   { href: "/", label: "Home", icon: LayoutDashboard },
   { href: "/proposals", label: "Proposals", icon: Vote },
+  { href: "/delegation", label: "Delegation", icon: Users },
   { href: "/identity", label: "Identity", icon: Fingerprint },
 ];
 

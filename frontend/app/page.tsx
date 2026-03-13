@@ -66,6 +66,10 @@ function HeroSection() {
             <Vote className="w-5 h-5" />
             Browse Proposals
           </Link>
+          <Link href="/delegation" className="btn-secondary flex items-center gap-2 text-base px-6 py-3">
+            <ArrowRightLeft className="w-5 h-5" />
+            Delegate Votes
+          </Link>
           <Link href="/identity" className="btn-secondary flex items-center gap-2 text-base px-6 py-3">
             <Fingerprint className="w-5 h-5" />
             Set Up Identity
