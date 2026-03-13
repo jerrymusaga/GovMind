@@ -216,7 +216,7 @@ export async function fetchHistoricalPrecedents(proposal, limit = 3) {
 
   try {
     // Fetch past proposals on same track
-    const trackUrl = `${SUBSQUARE_API}/gov2/referendums?page=1&pageSize=10&track=${proposal.track}`;
+    const trackUrl = `${SUBSQUARE_API}/gov2/tracks/${proposal.track}/referendums?page=1&pageSize=10`;
     try {
       const res = await fetch(trackUrl);
       if (res.ok) {

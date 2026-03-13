@@ -57,9 +57,11 @@ export async function GET(request: NextRequest) {
 
     // Fetch from Subsquare
     const fetchLimit = search ? 100 : Number(limit);
-    let url = `${SUBSQUARE_API}/gov2/referendums?page=${page}&pageSize=${fetchLimit}`;
+    let url;
     if (track && track !== "all") {
-      url += `&track=${track}`;
+      url = `${SUBSQUARE_API}/gov2/tracks/${track}/referendums?page=${page}&pageSize=${fetchLimit}`;
+    } else {
+      url = `${SUBSQUARE_API}/gov2/referendums?page=${page}&pageSize=${fetchLimit}`;
     }
 
     const res = await fetch(url, { next: { revalidate: 60 } });
