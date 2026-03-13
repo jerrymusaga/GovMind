@@ -1157,7 +1157,7 @@ export default function ProposalDetailPage() {
       }
     : null;
 
-  // Proposal metadata from Polkassembly (for state / voting guard)
+  // Proposal metadata from Subsquare (for state / voting guard)
   const [proposalState, setProposalState] = useState<string | null>(null);
 
   // Track user's vote for XCM verification panel + cross-VM animation
@@ -1263,12 +1263,12 @@ export default function ProposalDetailPage() {
 
         <div className="flex flex-wrap gap-3">
           <a
-            href={`https://polkadot.polkassembly.io/referenda/${referendumIndex}`}
+            href={`https://polkadot.subsquare.io/referenda/${referendumIndex}`}
             target="_blank"
             rel="noopener noreferrer"
             className="text-xs text-gray-400 hover:text-polkadot-pink flex items-center gap-1 transition-colors"
           >
-            <ExternalLink className="w-3 h-3" /> Polkassembly
+            <ExternalLink className="w-3 h-3" /> Subsquare
           </a>
           <a
             href={`https://blockscout-testnet.polkadot.io/address/${ADDRESSES.aiOracle}`}

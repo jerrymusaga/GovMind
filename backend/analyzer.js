@@ -15,7 +15,7 @@ const DEEP_SYSTEM_PROMPT = `You are GovMind, an expert AI governance analyst for
 CONTEXT:
 - Polkadot treasury: ~38 million DOT (~$190M at $5/DOT)
 - Polkadot has 1.4B total supply, ~55% staked
-- You have access to REAL on-chain voting data, community comments, and spending breakdowns from Polkassembly
+- You have access to REAL on-chain voting data, community comments, and spending breakdowns from Subsquare
 - Your analysis is published on-chain, so precision matters
 
 PROPOSAL CATEGORIES (pick exactly one by ID):
@@ -76,7 +76,7 @@ Respond with ONLY valid JSON matching this EXACT structure. No markdown, no expl
 }`;
 
 /**
- * Build an enriched prompt with all Polkassembly data + historical precedents
+ * Build an enriched prompt with all Subsquare data + historical precedents
  */
 function buildEnrichedPrompt(proposal, historicalData) {
   let prompt = `Analyze this Polkadot OpenGov referendum with the following REAL on-chain and community data:
@@ -125,7 +125,7 @@ NOTE: Calculate cost-per-month if the proposal mentions a duration.`;
     const ca = proposal.commentAnalysis;
     prompt += `
 
-=== COMMUNITY DISCUSSION (${ca.total} comments from Polkassembly) ===
+=== COMMUNITY DISCUSSION (${ca.total} comments from Subsquare) ===
 Sentiment: ${ca.sentiments.positive} supportive | ${ca.sentiments.negative} opposed | ${ca.sentiments.neutral} neutral
 Engagement Ratio: ${ca.total > 10 ? "High" : ca.total > 3 ? "Moderate" : "Low"} (${ca.total} comments)
 IMPORTANT: Weight expert/known-contributor comments more heavily than anonymous ones.`;
@@ -207,7 +207,7 @@ No historical data available for comparison. Note this as a limitation in your a
 }
 
 /**
- * Analyze a proposal using OpenAI GPT with enriched Polkassembly data + historical context
+ * Analyze a proposal using OpenAI GPT with enriched Subsquare data + historical context
  * Returns both on-chain params AND rich deep analysis for the API
  */
 export async function analyzeProposal(proposal, historicalData = []) {

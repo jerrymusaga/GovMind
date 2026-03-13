@@ -1,7 +1,7 @@
 /**
  * Change Detection Engine
  *
- * Detects significant changes in Polkassembly data that warrant re-analysis:
+ * Detects significant changes in Subsquare data that warrant re-analysis:
  * - New comments with concerns or endorsements
  * - Tally swing exceeding threshold
  * - Status change (e.g., Deciding → Confirming)

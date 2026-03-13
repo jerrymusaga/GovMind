@@ -29,7 +29,7 @@ function getChatOpenAI() {
  * Endpoints:
  *   GET  /api/analysis/:id      — Full deep analysis for a referendum
  *   GET  /api/analyses           — All stored analyses (summary view)
- *   GET  /api/proposal/:id       — Proposal metadata from Polkassembly
+ *   GET  /api/proposal/:id       — Proposal metadata from Subsquare
  *   POST /api/analyze/:id        — Trigger on-demand AI analysis
  *   GET  /api/health             — Health check
  */
@@ -53,7 +53,7 @@ export function storeAnalysis(referendumIndex, analysis) {
 }
 
 /**
- * Store proposal metadata from Polkassembly (called from index.js)
+ * Store proposal metadata from Subsquare (called from index.js)
  */
 export function storeProposalMeta(referendumIndex, proposal) {
   proposalStore.set(Number(referendumIndex), {
@@ -87,11 +87,11 @@ async function handleAnalyzeRequest(id, res) {
   console.log(`\n[ON-DEMAND] Analyzing referendum #${id}...`);
 
   try {
-    // 1. Fetch proposal from Polkassembly
-    console.log(`  Fetching proposal #${id} from Polkassembly...`);
+    // 1. Fetch proposal from Subsquare
+    console.log(`  Fetching proposal #${id} from Subsquare...`);
     const proposal = await fetchReferendum(id);
     if (!proposal) {
-      return json(res, { error: "Proposal not found on Polkassembly" }, 404);
+      return json(res, { error: "Proposal not found on Subsquare" }, 404);
     }
 
     // 2. Check if analysis already exists on-chain

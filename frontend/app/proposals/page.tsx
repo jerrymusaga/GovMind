@@ -170,7 +170,7 @@ export default function ProposalsPage() {
       setTotal(data.total || items.length);
       setHasMore(!data.directLookup && items.length > 0 && (data.referenda || []).length === fetchLimit);
     } catch {
-      setError("Failed to load proposals from Polkassembly. Using on-chain data only.");
+      setError("Failed to load proposals from Subsquare. Using on-chain data only.");
       if (!append) setReferenda([]);
     } finally {
       setLoading(false);
@@ -253,7 +253,7 @@ export default function ProposalsPage() {
       {loading && referenda.length === 0 && (
         <div className="glass-card p-12 text-center">
           <Loader2 className="w-8 h-8 text-polkadot-pink mx-auto mb-4 animate-spin" />
-          <p className="text-sm text-gray-400">Loading proposals from Polkassembly...</p>
+          <p className="text-sm text-gray-400">Loading proposals from Subsquare...</p>
         </div>
       )}
 
