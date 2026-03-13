@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useMemo } from "react";
 import { useAccount, useReadContract, useWriteContract, useWaitForTransactionReceipt } from "wagmi";
 import { ConnectButton } from "@rainbow-me/rainbowkit";
 import {
@@ -25,7 +25,6 @@ import {
   Brain,
   Target,
   ToggleLeft,
-  ToggleRight,
   Sparkles,
   Crown,
   Award,
@@ -33,6 +32,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import clsx from "clsx";
+import DelegationChatAgent from "@/components/DelegationChatAgent";
 
 // ─── Types ───
 
@@ -277,9 +277,6 @@ function DelegateCard({
 // ─── Active Delegations ───
 
 function ActiveDelegations() {
-  const { address } = useAccount();
-
-  // Read delegation status for common tracks
   const trackIds = [0, 1, 2, 10, 11, 14, 30, 31, 32, 33, 34];
 
   return (
@@ -350,7 +347,7 @@ export default function DelegationPage() {
     hash: txHash,
   });
 
-  const handleDelegate = (delegateAddress: string, trackId: number) => {
+  const handleDelegate = (_delegateAddress: string, trackId: number) => {
     writeContract({
       address: ADDRESSES.identityVault,
       abi: IDENTITY_VAULT_ABI,
@@ -423,7 +420,7 @@ export default function DelegationPage() {
         </div>
 
         {/* Identity status */}
-        {!hasIdentity && (
+        {hasIdentity === false && (
           <div className="mt-4 p-4 rounded-xl bg-amber-500/10 border border-amber-500/20">
             <div className="flex items-start gap-3">
               <Fingerprint className="w-5 h-5 text-amber-400 mt-0.5" />
@@ -449,11 +446,19 @@ export default function DelegationPage() {
 
         {hasIdentity && userWeights && (
           <div className="mt-4 p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/20">
-            <div className="flex items-center gap-3">
-              <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-              <p className="text-xs text-emerald-400">
-                Identity loaded — delegates are ranked by alignment with your governance profile
-              </p>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                <p className="text-xs text-emerald-400">
+                  Identity loaded — delegates are ranked by alignment with your governance profile
+                </p>
+              </div>
+              <Link
+                href="/identity"
+                className="text-[10px] text-emerald-400/70 hover:text-emerald-400 hover:underline shrink-0 ml-3"
+              >
+                Update identity
+              </Link>
             </div>
             <div className="mt-3 grid grid-cols-6 gap-2">
               {PREFERENCE_AXES.map((axis, i) => {
@@ -523,7 +528,7 @@ export default function DelegationPage() {
         <div className="relative">
           <select
             value={trackFilter}
-            onChange={(e) => setTrackFilter(e.target.value)}
+            onChange={(e) => { setTrackFilter(e.target.value); setExpandedCard(null); }}
             className="appearance-none pl-4 pr-8 py-2.5 rounded-xl bg-surface-2 border border-white/10 text-xs text-white focus:outline-none focus:border-polkadot-pink/40 transition-colors cursor-pointer"
           >
             <option value="all">All Tracks</option>
@@ -641,6 +646,24 @@ export default function DelegationPage() {
           </div>
         </div>
       </div>
+
+      <DelegationChatAgent
+        userIdentity={
+          userWeights
+            ? { axes: userWeights, riskTolerance: 50 }
+            : null
+        }
+        delegates={scoredDelegates.map((d) => ({
+          name: d.name,
+          badge: d.badge,
+          identity: d.identity,
+          tracks: d.tracks,
+          totalVotes: d.totalVotes,
+          alignmentScore: d.alignmentScore,
+          description: d.description,
+        }))}
+        hasIdentity={!!hasIdentity}
+      />
     </div>
   );
 }

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
-const POLKASSEMBLY_BASE = "https://polkadot.polkassembly.io/api/v1";
+const SUBSQUARE_API = "https://polkadot-api.subsquare.io";
 
 export async function GET(
   _request: NextRequest,
@@ -14,41 +14,42 @@ export async function GET(
   }
 
   try {
-    const url = `${POLKASSEMBLY_BASE}/posts/on-chain-post?postId=${referendumIndex}&proposalType=referendums_v2`;
-    const res = await fetch(url, {
-      headers: { "x-network": "polkadot" },
-      next: { revalidate: 120 },
-    });
+    const res = await fetch(
+      `${SUBSQUARE_API}/gov2/referendums/${referendumIndex}`,
+      { next: { revalidate: 120 } }
+    );
 
     if (!res.ok) {
       return NextResponse.json(
-        { error: `Polkassembly returned ${res.status}` },
+        { error: `Subsquare returned ${res.status}` },
         { status: res.status }
       );
     }
 
     const post = await res.json();
+    const onchain = post.onchainData || {};
+    const tally = onchain.tally;
 
     return NextResponse.json({
-      referendumIndex: post.post_id ?? referendumIndex,
+      referendumIndex: post.referendumIndex ?? referendumIndex,
       title: post.title || `Referendum #${referendumIndex}`,
-      content: (post.content || post.markdownContent || "").slice(0, 8000),
-      track: post.track_number ?? 0,
-      trackName: post.origin || "",
-      state: post.status || "Unknown",
+      content: (post.content || "").slice(0, 8000),
+      track: post.track ?? 0,
+      trackName: post.trackInfo?.name || "",
+      state: post.state?.name || "Unknown",
       proposer: post.proposer || "",
-      createdAt: post.created_at || "",
-      commentsCount: post.comments_count ?? 0,
-      tally: post.tally
+      createdAt: post.createdAt || "",
+      commentsCount: post.commentsCount ?? 0,
+      tally: tally
         ? {
-            ayes: post.tally.ayes || "0",
-            nays: post.tally.nays || "0",
-            support: post.tally.support || "0",
+            ayes: tally.ayes || "0",
+            nays: tally.nays || "0",
+            support: tally.support || "0",
           }
         : null,
     });
   } catch (err) {
-    console.error(`Polkassembly proxy error for #${referendumIndex}:`, err);
+    console.error(`Subsquare proxy error for #${referendumIndex}:`, err);
     return NextResponse.json(
       { error: "Failed to fetch referendum" },
       { status: 500 }

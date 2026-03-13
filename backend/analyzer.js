@@ -88,7 +88,7 @@ Origin: ${proposal.origin || proposal.trackName}
 Title: ${proposal.title}
 Proposer: ${proposal.proposer}
 Status: ${proposal.state}
-Data Source: ${proposal.dataSource || "polkassembly"}
+Data Source: ${proposal.dataSource || "subsquare"}
 
 === PROPOSAL CONTENT ===
 ${proposal.content}`;

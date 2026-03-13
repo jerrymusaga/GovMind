@@ -353,6 +353,98 @@ This user has set their governance preferences. Tailor your advice accordingly:`
 }
 
 /**
+ * Handle AI delegation advisor chat
+ */
+async function handleDelegationChat(req, res) {
+  const body = await new Promise((resolve, reject) => {
+    let data = "";
+    req.on("data", (chunk) => (data += chunk));
+    req.on("end", () => {
+      try { resolve(JSON.parse(data)); } catch { reject(new Error("Invalid JSON")); }
+    });
+    req.on("error", reject);
+  });
+
+  const { message, history = [], userIdentity, delegates } = body;
+  if (!message || typeof message !== "string") {
+    return json(res, { error: "message is required" }, 400);
+  }
+
+  const axisNames = [
+    "Treasury Conservative",
+    "Treasury Growth",
+    "Tech Progressive",
+    "Tech Conservative",
+    "Community Focused",
+    "Infrastructure",
+  ];
+
+  let systemPrompt = `You are GovMind Delegation Advisor — an AI assistant that helps Polkadot OpenGov users understand delegation and find the right delegates for their governance values.
+
+RULES:
+- Be concise (2-4 sentences per response unless the user asks for detail)
+- Explain delegation concepts in simple terms — assume the user may be new to Polkadot governance
+- When recommending delegates, reference their alignment scores and governance profiles
+- Explain WHY a delegate matches or doesn't match the user's values
+- Be opinionated — give clear recommendations when asked
+- Use plain language, avoid jargon
+
+=== POLKADOT DELEGATION CONTEXT ===
+- In Polkadot OpenGov, users can delegate their voting power to trusted community members PER TRACK
+- There are 15+ governance tracks (Root, Treasurer, Staking Admin, Small Tipper, Big Spender, etc.)
+- Delegation means lending your voting weight, NOT sending tokens — tokens stay in the user's wallet
+- Users can undelegate anytime
+- Conviction multipliers apply: higher conviction = longer lock but more voting power
+- GovMind uses the AlignmentScorer PVM contract (Rust on RISC-V) to compute cosine similarity between user and delegate governance identities`;
+
+  if (userIdentity && userIdentity.axes) {
+    systemPrompt += `\n\n=== USER GOVERNANCE IDENTITY ===`;
+    for (let i = 0; i < Math.min(userIdentity.axes.length, 6); i++) {
+      systemPrompt += `\n${axisNames[i]}: ${userIdentity.axes[i]}/100`;
+    }
+    if (userIdentity.riskTolerance != null) {
+      systemPrompt += `\nRisk Tolerance: ${userIdentity.riskTolerance}/100`;
+    }
+  } else {
+    systemPrompt += `\n\nThe user has NOT created a governance identity yet. Encourage them to create one on the Identity page so GovMind can compute alignment scores.`;
+  }
+
+  if (delegates && delegates.length > 0) {
+    systemPrompt += `\n\n=== AVAILABLE DELEGATES ===`;
+    for (const d of delegates) {
+      systemPrompt += `\n\n${d.name} (${d.badge}): Alignment ${d.alignmentScore ?? "N/A"}%`;
+      systemPrompt += `\n  Profile: ${d.identity.map((v, i) => `${axisNames[i]}=${v}`).join(", ")}`;
+      systemPrompt += `\n  Tracks: ${d.tracks.join(", ")} | Votes cast: ${d.totalVotes}`;
+      systemPrompt += `\n  ${d.description}`;
+    }
+  }
+
+  const trimmedHistory = history.slice(-10).map((m) => ({
+    role: m.role === "user" ? "user" : "assistant",
+    content: String(m.content),
+  }));
+
+  try {
+    const response = await getChatOpenAI().chat.completions.create({
+      model: "gpt-4o-mini",
+      temperature: 0.5,
+      max_tokens: 500,
+      messages: [
+        { role: "system", content: systemPrompt },
+        ...trimmedHistory,
+        { role: "user", content: message },
+      ],
+    });
+
+    const reply = response.choices[0].message.content.trim();
+    return json(res, { reply });
+  } catch (err) {
+    console.error(`  Delegation chat error: ${err.message}`);
+    return json(res, { error: "Chat failed" }, 500);
+  }
+}
+
+/**
  * Start the HTTP API server (no Express dependency — uses Node http)
  */
 export function startApiServer(port = 3001) {
@@ -388,6 +480,11 @@ export function startApiServer(port = 3001) {
       if (analyzeMatch && req.method === "POST") {
         const id = Number(analyzeMatch[1]);
         return await handleAnalyzeRequest(id, res);
+      }
+
+      // POST /api/chat/delegation — AI delegation advisor
+      if (path === "/api/chat/delegation" && req.method === "POST") {
+        return await handleDelegationChat(req, res);
       }
 
       // POST /api/chat/:id — AI agent chat

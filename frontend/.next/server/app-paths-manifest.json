@@ -1,5 +1,6 @@
 {
-  "/identity/page": "app/identity/page.js",
-  "/delegation/page": "app/delegation/page.js",
-  "/page": "app/page.js"
+  "/api/referenda/[id]/route": "app/api/referenda/[id]/route.js",
+  "/api/referenda/route": "app/api/referenda/route.js",
+  "/proposals/[id]/page": "app/proposals/[id]/page.js",
+  "/proposals/page": "app/proposals/page.js"
 }

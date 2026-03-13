@@ -1,17 +1,28 @@
 import { NextRequest, NextResponse } from "next/server";
 
-const POLKASSEMBLY_BASE = "https://polkadot.polkassembly.io/api/v1";
+const SUBSQUARE_API = "https://polkadot-api.subsquare.io";
 
-function normalizePost(post: Record<string, unknown>) {
+interface SubsquarePost {
+  referendumIndex: number;
+  title?: string;
+  track?: number;
+  trackInfo?: { name?: string };
+  state?: { name?: string };
+  proposer?: string;
+  createdAt?: string;
+  commentsCount?: number;
+}
+
+function normalizePost(post: SubsquarePost) {
   return {
-    referendumIndex: post.post_id ?? post.id,
-    title: post.title || `Referendum #${post.post_id ?? post.id}`,
-    track: post.track_number ?? post.track_no ?? 0,
-    trackName: post.origin || "",
-    state: post.status || "Unknown",
+    referendumIndex: post.referendumIndex,
+    title: post.title || `Referendum #${post.referendumIndex}`,
+    track: post.track ?? 0,
+    trackName: post.trackInfo?.name || "",
+    state: post.state?.name || "Unknown",
     proposer: post.proposer || "",
-    createdAt: post.created_at || post.createdAt || "",
-    commentsCount: post.comments_count ?? 0,
+    createdAt: post.createdAt || "",
+    commentsCount: post.commentsCount ?? 0,
   };
 }
 
@@ -26,11 +37,10 @@ export async function GET(request: NextRequest) {
     // If search is a pure number, fetch that specific proposal by ID
     if (search && /^\d+$/.test(search)) {
       const id = search;
-      const url = `${POLKASSEMBLY_BASE}/posts/on-chain-post?postId=${id}&proposalType=referendums_v2`;
-      const res = await fetch(url, {
-        headers: { "x-network": "polkadot" },
-        next: { revalidate: 120 },
-      });
+      const res = await fetch(
+        `${SUBSQUARE_API}/gov2/referendums/${id}`,
+        { next: { revalidate: 120 } }
+      );
 
       if (res.ok) {
         const post = await res.json();
@@ -45,29 +55,26 @@ export async function GET(request: NextRequest) {
       // If not found, fall through to listing search
     }
 
-    // Fetch a larger batch when searching (Polkassembly has no text search API)
-    const fetchLimit = search ? "100" : limit;
-    let url = `${POLKASSEMBLY_BASE}/listing/on-chain-posts?proposalType=referendums_v2&page=${page}&listingLimit=${fetchLimit}&sortBy=newest`;
+    // Fetch from Subsquare
+    const fetchLimit = search ? 100 : Number(limit);
+    let url = `${SUBSQUARE_API}/gov2/referendums?page=${page}&pageSize=${fetchLimit}`;
     if (track && track !== "all") {
-      url += `&trackNo=${track}`;
+      url += `&track=${track}`;
     }
 
-    const res = await fetch(url, {
-      headers: { "x-network": "polkadot" },
-      next: { revalidate: 60 },
-    });
+    const res = await fetch(url, { next: { revalidate: 60 } });
 
     if (!res.ok) {
       return NextResponse.json(
-        { error: `Polkassembly returned ${res.status}` },
+        { error: `Subsquare returned ${res.status}` },
         { status: res.status }
       );
     }
 
     const data = await res.json();
-    const posts = data.posts || data || [];
+    const items: SubsquarePost[] = data.items || [];
 
-    let referenda = (Array.isArray(posts) ? posts : []).map(normalizePost);
+    let referenda = items.map(normalizePost);
 
     // Server-side text filtering
     if (search) {
@@ -83,12 +90,12 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({
       referenda,
-      total: search ? referenda.length : (data.count ?? referenda.length),
+      total: search ? referenda.length : (data.total ?? referenda.length),
       page: Number(page),
-      limit: Number(fetchLimit),
+      limit: fetchLimit,
     });
   } catch (err) {
-    console.error("Polkassembly proxy error:", err);
+    console.error("Subsquare proxy error:", err);
     return NextResponse.json(
       { error: "Failed to fetch referenda" },
       { status: 500 }
