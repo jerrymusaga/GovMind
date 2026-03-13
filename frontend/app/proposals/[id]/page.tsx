@@ -52,6 +52,7 @@ import {
   ArrowRightLeft,
 } from "lucide-react";
 import ChatAgent from "@/components/ChatAgent";
+import ReactMarkdown from "react-markdown";
 import Link from "next/link";
 import clsx from "clsx";
 
@@ -1157,8 +1158,10 @@ export default function ProposalDetailPage() {
       }
     : null;
 
-  // Proposal metadata from Subsquare (for state / voting guard)
+  // Proposal metadata from Subsquare (for state / voting guard + content)
   const [proposalState, setProposalState] = useState<string | null>(null);
+  const [proposalContent, setProposalContent] = useState<string | null>(null);
+  const [contentExpanded, setContentExpanded] = useState(false);
 
   // Track user's vote for XCM verification panel + cross-VM animation
   const [voteParams, setVoteParams] = useState<VoteParams | null>(null);
@@ -1189,6 +1192,7 @@ export default function ProposalDetailPage() {
         if (res.ok) {
           const data = await res.json();
           setProposalState(data.state || null);
+          if (data.content) setProposalContent(data.content);
         }
       } catch {
         // Non-critical
@@ -1280,6 +1284,31 @@ export default function ProposalDetailPage() {
           </a>
         </div>
       </div>
+
+      {/* Proposal Content */}
+      {proposalContent && (
+        <div className="glass-card p-6 mb-6">
+          <button
+            onClick={() => setContentExpanded(!contentExpanded)}
+            className="w-full flex items-center justify-between"
+          >
+            <h3 className="text-sm font-semibold text-white flex items-center gap-2">
+              <FileCode className="w-4 h-4 text-polkadot-pink" />
+              Proposal Content
+            </h3>
+            {contentExpanded ? (
+              <ChevronUp className="w-4 h-4 text-gray-500" />
+            ) : (
+              <ChevronDown className="w-4 h-4 text-gray-500" />
+            )}
+          </button>
+          {contentExpanded && (
+            <div className="mt-4 prose prose-invert prose-sm max-w-none prose-headings:text-white prose-p:text-gray-300 prose-a:text-polkadot-pink prose-strong:text-white prose-li:text-gray-300 prose-code:text-polkadot-purple prose-code:bg-surface-2 prose-code:px-1 prose-code:rounded prose-pre:bg-surface-2 prose-pre:border prose-pre:border-white/5 prose-img:rounded-xl">
+              <ReactMarkdown>{proposalContent}</ReactMarkdown>
+            </div>
+          )}
+        </div>
+      )}
 
       {!hasOnChain ? (
         <RequestAnalysisPanel referendumIndex={referendumIndex} onAnalyzed={() => window.location.reload()} />
