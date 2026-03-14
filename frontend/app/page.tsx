@@ -402,14 +402,22 @@ function PVMAdminPanel() {
     functionName: "usePVMScorer",
   });
 
+  const { data: xcmRelayEnabled } = useReadContract({
+    address: ADDRESSES.govMindCore,
+    abi: GOVMIND_CORE_ADMIN_ABI,
+    functionName: "xcmRelayEnabled",
+  });
+
   const isOwner = isConnected && address && coreOwner && address.toLowerCase() === (coreOwner as string).toLowerCase();
 
   const { writeContract: wireScorer, data: scorerTx, isPending: scorerPending } = useWriteContract();
   const { writeContract: wireCodec, data: codecTx, isPending: codecPending } = useWriteContract();
+  const { writeContract: enableXcm, data: xcmTx, isPending: xcmPending } = useWriteContract();
   const { isSuccess: scorerSuccess } = useWaitForTransactionReceipt({ hash: scorerTx });
   const { isSuccess: codecSuccess } = useWaitForTransactionReceipt({ hash: codecTx });
+  const { isSuccess: xcmSuccess } = useWaitForTransactionReceipt({ hash: xcmTx });
 
-  if (!isOwner || (pvmCodecEnabled && pvmScorerEnabled)) return null;
+  if (!isOwner || (pvmCodecEnabled && pvmScorerEnabled && xcmRelayEnabled)) return null;
 
   return (
     <div className="py-8">
@@ -422,7 +430,7 @@ function PVMAdminPanel() {
           </span>
         </div>
         <p className="text-xs text-gray-400 mb-4">
-          Wire the PVM Rust contracts to enable cross-VM execution. This connects AlignmentScorer and ScaleCodecPVM to the EVM contracts.
+          Wire the PVM Rust contracts and enable XCM relay for cross-chain vote execution.
         </p>
         <div className="flex flex-wrap gap-3">
           {!pvmScorerEnabled && (
@@ -453,6 +461,21 @@ function PVMAdminPanel() {
             >
               {codecPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Cpu className="w-4 h-4" />}
               {codecSuccess ? "ScaleCodecPVM Wired" : "Wire ScaleCodecPVM"}
+            </button>
+          )}
+          {!xcmRelayEnabled && (
+            <button
+              onClick={() => enableXcm({
+                address: ADDRESSES.govMindCore,
+                abi: GOVMIND_CORE_ADMIN_ABI,
+                functionName: "toggleXCMRelay",
+                args: [true],
+              })}
+              disabled={xcmPending}
+              className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium bg-polkadot-purple/15 text-polkadot-purple border border-polkadot-purple/30 hover:bg-polkadot-purple/25 transition-all disabled:opacity-50"
+            >
+              {xcmPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Globe className="w-4 h-4" />}
+              {xcmSuccess ? "XCM Relay Enabled" : "Enable XCM Relay"}
             </button>
           )}
         </div>

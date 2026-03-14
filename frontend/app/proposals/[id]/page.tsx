@@ -522,6 +522,7 @@ interface VoteParams {
   aye: boolean;
   conviction: number;
   amount: string;
+  txHash?: string;
 }
 
 function CrossVMFlowSection({ voteFlowState }: { voteFlowState: "idle" | "pending" | "confirming" | "confirmed" }) {
@@ -716,7 +717,7 @@ function VotePanel({
   // Notify parent when vote is confirmed
   useEffect(() => {
     if (isSuccess && votingAye !== null && onVoteSuccess) {
-      onVoteSuccess({ aye: votingAye, conviction, amount });
+      onVoteSuccess({ aye: votingAye, conviction, amount, txHash: voteTxHash });
     }
   }, [isSuccess]);
 
@@ -833,10 +834,24 @@ function VotePanel({
             Vote Nay
           </button>
         </div>
-        {isSuccess && (
-          <div className="flex items-center gap-2 text-emerald-400 text-sm">
-            <CheckCircle2 className="w-4 h-4" />
-            Vote recorded on-chain!
+        {isSuccess && voteTxHash && (
+          <div className="space-y-2">
+            <div className="flex items-center gap-2 text-emerald-400 text-sm">
+              <CheckCircle2 className="w-4 h-4" />
+              Vote recorded on-chain!
+            </div>
+            <a
+              href={`https://blockscout-testnet.polkadot.io/tx/${voteTxHash}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-medium bg-polkadot-purple/10 text-polkadot-purple border border-polkadot-purple/20 hover:bg-polkadot-purple/20 transition-all w-fit"
+            >
+              <ExternalLink className="w-3.5 h-3.5" />
+              View Transaction on Blockscout
+            </a>
+            <p className="text-[10px] text-gray-600 font-mono break-all">
+              TX: {voteTxHash}
+            </p>
           </div>
         )}
       </div>
@@ -976,6 +991,27 @@ function XCMVerificationPanel({
               </div>
             </div>
           </div>
+
+          {/* Block Explorer Link */}
+          {voteParams.txHash && (
+            <div className="p-4 rounded-xl bg-emerald-500/5 border border-emerald-500/20">
+              <p className="text-[10px] text-gray-500 uppercase tracking-wider font-semibold mb-3">
+                Transaction Proof
+              </p>
+              <a
+                href={`https://blockscout-testnet.polkadot.io/tx/${voteParams.txHash}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-medium bg-polkadot-purple/10 text-polkadot-purple border border-polkadot-purple/20 hover:bg-polkadot-purple/20 transition-all w-fit"
+              >
+                <ExternalLink className="w-3.5 h-3.5" />
+                View on Blockscout Explorer
+              </a>
+              <p className="text-[10px] text-gray-600 font-mono break-all mt-2">
+                {voteParams.txHash}
+              </p>
+            </div>
+          )}
 
           {/* Raw bytes toggle */}
           <button

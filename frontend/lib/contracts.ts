@@ -355,6 +355,27 @@ export const GOVMIND_CORE_ADMIN_ABI = [
     outputs: [],
   },
   {
+    name: "toggleXCMRelay",
+    type: "function",
+    stateMutability: "nonpayable",
+    inputs: [{ name: "_enabled", type: "bool" }],
+    outputs: [],
+  },
+  {
+    name: "setXCMRelay",
+    type: "function",
+    stateMutability: "nonpayable",
+    inputs: [{ name: "_relay", type: "address" }],
+    outputs: [],
+  },
+  {
+    name: "xcmRelayEnabled",
+    type: "function",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ name: "", type: "bool" }],
+  },
+  {
     name: "owner",
     type: "function",
     stateMutability: "view",
