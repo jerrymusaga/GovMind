@@ -16,6 +16,7 @@ import {
   Brain,
   ChevronRight,
   User,
+  ExternalLink,
 } from "lucide-react";
 import clsx from "clsx";
 
@@ -252,7 +253,16 @@ export function ProposalCard({ referendumIndex, title, track, proposer, state, c
         )}
 
         {/* Footer */}
-        <div className="flex items-center justify-end mt-3 pt-3 border-t border-white/5">
+        <div className="flex items-center justify-between mt-3 pt-3 border-t border-white/5">
+          <a
+            href={`https://polkadot.subsquare.io/referenda/${referendumIndex}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={(e) => e.stopPropagation()}
+            className="text-[10px] text-gray-600 hover:text-polkadot-pink transition-colors flex items-center gap-1"
+          >
+            <ExternalLink className="w-3 h-3" /> Subsquare
+          </a>
           <span className="text-[10px] text-gray-500 group-hover:text-polkadot-pink transition-colors flex items-center gap-1">
             View details <ChevronRight className="w-3 h-3" />
           </span>

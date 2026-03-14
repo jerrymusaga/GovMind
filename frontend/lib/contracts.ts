@@ -14,10 +14,10 @@ export const POLKADOT_HUB_TESTNET = {
 } as const;
 
 export const ADDRESSES = {
-  identityVault: "0x32F9f794b917AdC54b1708Df809a10386c81f07d" as `0x${string}`,
-  aiOracle: "0x7bD88Cd06d781B2cf39f509D0a7909160DcE95da" as `0x${string}`,
-  govMindCore: "0x8DF87ba9728C42a5597e7398bC369B86c4D6386f" as `0x${string}`,
-  xcmRelay: "0x34a2f569D91561A583432F8DEC0055C4f811DB73" as `0x${string}`,
+  identityVault: "0xCC6d8B7896E451cD3c3a34adA0dE55885519aDA1" as `0x${string}`,
+  aiOracle: "0xB9364a7Be7be4598BBb4edb812aFbe25a85ebB2A" as `0x${string}`,
+  govMindCore: "0x9738ceE50C7ce9E45d32a27D43886D61EF7D3f6a" as `0x${string}`,
+  xcmRelay: "0xFf63bF7E3e0eB21BFB552B6e32de08a98Ad01faF" as `0x${string}`,
   scaleCodecPVM: "0x9c0E4B07f26726d6646C8465cfA39f9662550cDb" as `0x${string}`,
   alignmentScorerPVM: "0x60B9D9D2097963ADf51Cf6c1E1b80309c2959238" as `0x${string}`,
 };
@@ -342,6 +342,46 @@ export const CATEGORY_NAMES: Record<number, string> = {
   8: "Bounty",
   9: "Other",
 };
+
+export const GOVMIND_CORE_ADMIN_ABI = [
+  {
+    name: "setPVMScorer",
+    type: "function",
+    stateMutability: "nonpayable",
+    inputs: [
+      { name: "_scorer", type: "address" },
+      { name: "_enabled", type: "bool" },
+    ],
+    outputs: [],
+  },
+  {
+    name: "owner",
+    type: "function",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ name: "", type: "address" }],
+  },
+] as const;
+
+export const XCM_RELAY_ADMIN_ABI = [
+  {
+    name: "setPVMCodec",
+    type: "function",
+    stateMutability: "nonpayable",
+    inputs: [
+      { name: "_codec", type: "address" },
+      { name: "_enabled", type: "bool" },
+    ],
+    outputs: [],
+  },
+  {
+    name: "owner",
+    type: "function",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ name: "", type: "address" }],
+  },
+] as const;
 
 export const XCM_RELAY_ABI = [
   {

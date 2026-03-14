@@ -251,9 +251,24 @@ export default function ProposalsPage() {
       </div>
 
       {loading && referenda.length === 0 && (
-        <div className="glass-card p-12 text-center">
-          <Loader2 className="w-8 h-8 text-polkadot-pink mx-auto mb-4 animate-spin" />
-          <p className="text-sm text-gray-400">Loading proposals from Subsquare...</p>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <div key={i} className="glass-card p-5 animate-pulse">
+              <div className="flex items-center gap-2 mb-3">
+                <div className="h-5 w-12 bg-surface-3 rounded-md" />
+                <div className="h-5 w-20 bg-surface-3 rounded-md" />
+                <div className="h-5 w-16 bg-surface-3 rounded-md" />
+              </div>
+              <div className="h-4 w-3/4 bg-surface-3 rounded mb-2" />
+              <div className="h-4 w-1/2 bg-surface-3 rounded mb-4" />
+              <div className="flex items-center gap-3 mb-3">
+                <div className="h-3 w-20 bg-surface-3 rounded" />
+                <div className="h-3 w-12 bg-surface-3 rounded" />
+              </div>
+              <div className="h-8 w-full bg-surface-3 rounded-full mb-3" />
+              <div className="h-1.5 w-full bg-surface-3 rounded-full" />
+            </div>
+          ))}
         </div>
       )}
 

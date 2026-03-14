@@ -1,12 +1,14 @@
 "use client";
 
-import { useAccount, useReadContract } from "wagmi";
+import { useAccount, useReadContract, useWriteContract, useWaitForTransactionReceipt } from "wagmi";
 import { ConnectButton } from "@rainbow-me/rainbowkit";
 import {
   ADDRESSES,
   AI_ORACLE_ABI,
   XCM_RELAY_ABI,
   PVM_STATUS_ABI,
+  GOVMIND_CORE_ADMIN_ABI,
+  XCM_RELAY_ADMIN_ABI,
 } from "@/lib/contracts";
 import {
   Brain,
@@ -23,7 +25,10 @@ import {
   Vote,
   Code2,
   CheckCircle2,
+  Loader2,
+  Settings,
 } from "lucide-react";
+import { useState } from "react";
 import Link from "next/link";
 
 // ─── Hero Section ───
@@ -365,6 +370,88 @@ function ContractsSection() {
   );
 }
 
+// ─── PVM Admin Panel (owner only) ───
+
+function PVMAdminPanel() {
+  const { address, isConnected } = useAccount();
+
+  const { data: coreOwner } = useReadContract({
+    address: ADDRESSES.govMindCore,
+    abi: GOVMIND_CORE_ADMIN_ABI,
+    functionName: "owner",
+  });
+
+  const { data: pvmCodecEnabled } = useReadContract({
+    address: ADDRESSES.xcmRelay,
+    abi: PVM_STATUS_ABI,
+    functionName: "usePVMCodec",
+  });
+
+  const { data: pvmScorerEnabled } = useReadContract({
+    address: ADDRESSES.govMindCore,
+    abi: PVM_STATUS_ABI,
+    functionName: "usePVMScorer",
+  });
+
+  const isOwner = isConnected && address && coreOwner && address.toLowerCase() === (coreOwner as string).toLowerCase();
+
+  const { writeContract: wireScorer, data: scorerTx, isPending: scorerPending } = useWriteContract();
+  const { writeContract: wireCodec, data: codecTx, isPending: codecPending } = useWriteContract();
+  const { isSuccess: scorerSuccess } = useWaitForTransactionReceipt({ hash: scorerTx });
+  const { isSuccess: codecSuccess } = useWaitForTransactionReceipt({ hash: codecTx });
+
+  if (!isOwner || (pvmCodecEnabled && pvmScorerEnabled)) return null;
+
+  return (
+    <div className="py-8">
+      <div className="p-6 rounded-2xl bg-surface-1/50 border border-cyan-500/20">
+        <div className="flex items-center gap-2 mb-4">
+          <Settings className="w-5 h-5 text-cyan-400" />
+          <h3 className="text-sm font-semibold text-white">PVM Admin Panel</h3>
+          <span className="px-2 py-0.5 text-[10px] font-bold uppercase bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 rounded">
+            Owner Only
+          </span>
+        </div>
+        <p className="text-xs text-gray-400 mb-4">
+          Wire the PVM Rust contracts to enable cross-VM execution. This connects AlignmentScorer and ScaleCodecPVM to the EVM contracts.
+        </p>
+        <div className="flex flex-wrap gap-3">
+          {!pvmScorerEnabled && (
+            <button
+              onClick={() => wireScorer({
+                address: ADDRESSES.govMindCore,
+                abi: GOVMIND_CORE_ADMIN_ABI,
+                functionName: "setPVMScorer",
+                args: [ADDRESSES.alignmentScorerPVM, true],
+              })}
+              disabled={scorerPending}
+              className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium bg-cyan-500/15 text-cyan-400 border border-cyan-500/30 hover:bg-cyan-500/25 transition-all disabled:opacity-50"
+            >
+              {scorerPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Cpu className="w-4 h-4" />}
+              {scorerSuccess ? "AlignmentScorer Wired" : "Wire AlignmentScorer"}
+            </button>
+          )}
+          {!pvmCodecEnabled && (
+            <button
+              onClick={() => wireCodec({
+                address: ADDRESSES.xcmRelay,
+                abi: XCM_RELAY_ADMIN_ABI,
+                functionName: "setPVMCodec",
+                args: [ADDRESSES.scaleCodecPVM, true],
+              })}
+              disabled={codecPending}
+              className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium bg-cyan-500/15 text-cyan-400 border border-cyan-500/30 hover:bg-cyan-500/25 transition-all disabled:opacity-50"
+            >
+              {codecPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Cpu className="w-4 h-4" />}
+              {codecSuccess ? "ScaleCodecPVM Wired" : "Wire ScaleCodecPVM"}
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── CTA Section ───
 
 function CTASection() {
@@ -408,6 +495,7 @@ export default function HomePage() {
       <FeaturesGrid />
       <ArchitectureSection />
       <ContractsSection />
+      <PVMAdminPanel />
       <CTASection />
     </div>
   );

@@ -44,16 +44,28 @@ contract DeployGovMind is Script {
         govMindCore.setXCMRelay(address(xcmRelay));
         console.log("XCM relay set on GovMindCore");
 
+        // 7. Wire PVM contracts
+        address scaleCodecPVM = 0x9c0E4B07f26726d6646C8465cfA39f9662550cDb;
+        address alignmentScorerPVM = 0x60B9D9D2097963ADf51Cf6c1E1b80309c2959238;
+
+        xcmRelay.setPVMCodec(scaleCodecPVM, true);
+        console.log("PVM ScaleCodec wired to XCMRelay");
+
+        govMindCore.setPVMScorer(alignmentScorerPVM, true);
+        console.log("PVM AlignmentScorer wired to GovMindCore");
+
         vm.stopBroadcast();
 
         console.log("\n========================================");
         console.log("  GovMind v3 Deployment Complete!");
-        console.log("  Now with XCM Cross-Chain Voting!");
+        console.log("  Cross-VM Pipeline Fully Wired!");
         console.log("========================================");
         console.log("  IdentityVault:       ", address(identityVault));
         console.log("  AIOracle:            ", address(aiOracle));
         console.log("  GovMindCore:         ", address(govMindCore));
         console.log("  XCMGovernanceRelay:  ", address(xcmRelay));
+        console.log("  ScaleCodecPVM:       ", scaleCodecPVM);
+        console.log("  AlignmentScorerPVM:  ", alignmentScorerPVM);
         console.log("========================================");
     }
 }

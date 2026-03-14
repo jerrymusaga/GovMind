@@ -1161,7 +1161,7 @@ export default function ProposalDetailPage() {
   // Proposal metadata from Subsquare (for state / voting guard + content)
   const [proposalState, setProposalState] = useState<string | null>(null);
   const [proposalContent, setProposalContent] = useState<string | null>(null);
-  const [contentExpanded, setContentExpanded] = useState(false);
+  const [contentExpanded, setContentExpanded] = useState(true);
 
   // Track user's vote for XCM verification panel + cross-VM animation
   const [voteParams, setVoteParams] = useState<VoteParams | null>(null);
@@ -1185,7 +1185,7 @@ export default function ProposalDetailPage() {
         setApiLoading(false);
       }
     }
-    // Fetch proposal state from Polkassembly proxy
+    // Fetch proposal state from Subsquare proxy
     async function fetchState() {
       try {
         const res = await fetch(`/api/referenda/${referendumIndex}`);
@@ -1227,10 +1227,10 @@ export default function ProposalDetailPage() {
     <div className="max-w-6xl mx-auto">
       {/* Back */}
       <button
-        onClick={() => router.push("/")}
+        onClick={() => router.push("/proposals")}
         className="flex items-center gap-2 text-gray-400 hover:text-white text-sm mb-6 transition-colors"
       >
-        <ArrowLeft className="w-4 h-4" /> Back to Dashboard
+        <ArrowLeft className="w-4 h-4" /> Back to Proposals
       </button>
 
       {/* Header */}
