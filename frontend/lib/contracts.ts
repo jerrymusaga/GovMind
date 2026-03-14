@@ -469,6 +469,82 @@ export const PVM_STATUS_ABI = [
   },
 ] as const;
 
+// ─── AI Voting Collectives ───
+
+export interface Collective {
+  id: string;
+  name: string;
+  description: string;
+  philosophy: string;
+  icon: string;
+  color: string;
+  borderColor: string;
+  bgColor: string;
+  axes: number[];
+  riskTolerance: number;
+  focusAreas: string[];
+  memberCount: number;
+}
+
+export const COLLECTIVES: Collective[] = [
+  {
+    id: "sustainability",
+    name: "Sustainability Collective",
+    description: "Champions environmental initiatives, green infrastructure, and long-term ecosystem health over short-term gains.",
+    philosophy: "Votes YES on sustainability proposals. Conservative on wasteful spending, progressive on green infrastructure.",
+    icon: "Leaf",
+    color: "text-emerald-400",
+    borderColor: "border-emerald-500/20",
+    bgColor: "bg-emerald-500/10",
+    axes: [70, 40, 40, 70, 80, 60],
+    riskTolerance: 35,
+    focusAreas: ["Environmental projects", "Green infrastructure", "Long-term ecosystem growth", "Community well-being"],
+    memberCount: 234,
+  },
+  {
+    id: "innovation",
+    name: "Innovation Collective",
+    description: "Backs developer tooling, ecosystem expansion, new parachains, and bold technical proposals that push boundaries.",
+    philosophy: "Supports proposals that increase adoption and experimentation. Growth-oriented treasury philosophy.",
+    icon: "Rocket",
+    color: "text-violet-400",
+    borderColor: "border-violet-500/20",
+    bgColor: "bg-violet-500/10",
+    axes: [20, 90, 90, 10, 50, 80],
+    riskTolerance: 75,
+    focusAreas: ["Developer tooling", "Ecosystem expansion", "New parachains", "Protocol experimentation"],
+    memberCount: 412,
+  },
+  {
+    id: "security",
+    name: "Security Collective",
+    description: "Prioritizes runtime safety, security audits, risk mitigation, and conservative upgrades to protect the network.",
+    philosophy: "Conservative voting philosophy. Scrutinizes technical proposals and opposes risky changes.",
+    icon: "ShieldCheck",
+    color: "text-cyan-400",
+    borderColor: "border-cyan-500/20",
+    bgColor: "bg-cyan-500/10",
+    axes: [60, 30, 30, 95, 30, 70],
+    riskTolerance: 20,
+    focusAreas: ["Runtime upgrades", "Security audits", "Risk mitigation", "Infrastructure hardening"],
+    memberCount: 178,
+  },
+  {
+    id: "treasury",
+    name: "Treasury Efficiency Collective",
+    description: "Demands fiscal discipline, ROI-driven spending, and accountability for every DOT spent from the treasury.",
+    philosophy: "Votes NO on wasteful treasury proposals. Demands clear deliverables and cost justification.",
+    icon: "Coins",
+    color: "text-amber-400",
+    borderColor: "border-amber-500/20",
+    bgColor: "bg-amber-500/10",
+    axes: [95, 10, 50, 60, 40, 50],
+    riskTolerance: 30,
+    focusAreas: ["Treasury spending discipline", "ROI analysis", "Accountability frameworks", "Cost optimization"],
+    memberCount: 321,
+  },
+];
+
 export const PREFERENCE_AXES = [
   { id: 0, name: "Treasury Conservative", description: "Minimize treasury spending", color: "#F59E0B", icon: "Shield" },
   { id: 1, name: "Treasury Growth", description: "Invest for ecosystem growth", color: "#10B981", icon: "TrendingUp" },

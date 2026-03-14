@@ -18,6 +18,8 @@ import {
   PVM_STATUS_ABI,
   TRACK_NAMES,
   CATEGORY_NAMES,
+  COLLECTIVES,
+  Collective,
 } from "@/lib/contracts";
 import {
   ArrowLeft,
@@ -50,6 +52,12 @@ import {
   XCircle,
   Cpu,
   ArrowRightLeft,
+  Users,
+  Leaf,
+  Rocket,
+  ShieldCheck,
+  Coins,
+  Crown,
 } from "lucide-react";
 import ChatAgent from "@/components/ChatAgent";
 import ReactMarkdown from "react-markdown";
@@ -1099,6 +1107,159 @@ function RequestAnalysisPanel({ referendumIndex, onAnalyzed }: { referendumIndex
   );
 }
 
+// ─── Collective Recommendation ───
+
+const COLLECTIVE_ICONS: Record<string, typeof Shield> = {
+  Leaf,
+  Rocket,
+  ShieldCheck,
+  Coins,
+};
+
+function getCategoryAxes(categoryId: number): { support: number; oppose: number; hasMapping: boolean } {
+  if (categoryId === 0 || categoryId === 1 || categoryId === 8) return { support: 1, oppose: 0, hasMapping: true };
+  if (categoryId === 2) return { support: 2, oppose: 3, hasMapping: true };
+  if (categoryId === 3 || categoryId === 6) return { support: 4, oppose: 5, hasMapping: true };
+  if (categoryId === 4 || categoryId === 5 || categoryId === 7) return { support: 5, oppose: 4, hasMapping: true };
+  return { support: 0, oppose: 0, hasMapping: false };
+}
+
+function computeCollectiveRecommendation(
+  collective: Collective,
+  categoryId: number,
+  riskScore: number,
+  baseRec: number,
+  baseConf: number
+): { recommendation: number; confidence: number; alignment: number } {
+  const { support, oppose, hasMapping } = getCategoryAxes(categoryId);
+  if (!hasMapping) return { recommendation: baseRec, confidence: baseConf, alignment: 50 };
+
+  const supportWeight = collective.axes[support];
+  const opposeWeight = collective.axes[oppose];
+
+  let raw = 50 + (supportWeight - opposeWeight) / 2;
+  if (riskScore > collective.riskTolerance) {
+    raw -= (riskScore - collective.riskTolerance) / 2;
+  }
+  const alignment = Math.max(0, Math.min(100, Math.round(raw)));
+
+  let recommendation: number;
+  let confidence: number;
+
+  if (alignment >= 60) {
+    recommendation = baseRec >= 0 ? 1 : 0;
+    confidence = baseRec >= 0
+      ? Math.min(100, baseConf + Math.floor((alignment - 50) / 2))
+      : Math.min(100, Math.floor(baseConf / 2 + alignment / 2));
+  } else if (alignment <= 40) {
+    recommendation = baseRec <= 0 ? -1 : 0;
+    confidence = baseRec <= 0
+      ? Math.min(100, baseConf + Math.floor((50 - alignment) / 2))
+      : Math.min(100, Math.floor(baseConf / 2 + (100 - alignment) / 2));
+  } else {
+    recommendation = baseRec;
+    confidence = baseConf;
+  }
+
+  return { recommendation, confidence, alignment };
+}
+
+function CollectiveRecommendationCard({
+  categoryId,
+  riskScore,
+  baseRec,
+  baseConf,
+}: {
+  categoryId: number;
+  riskScore: number;
+  baseRec: number;
+  baseConf: number;
+}) {
+  const [collective, setCollective] = useState<Collective | null>(null);
+
+  useEffect(() => {
+    const stored = localStorage.getItem("govmind_collective");
+    if (stored) {
+      try {
+        const { collectiveId } = JSON.parse(stored);
+        const found = COLLECTIVES.find((c) => c.id === collectiveId);
+        if (found) setCollective(found);
+      } catch {}
+    }
+  }, []);
+
+  if (!collective) return null;
+
+  const { recommendation, confidence, alignment } = computeCollectiveRecommendation(
+    collective,
+    categoryId,
+    riskScore,
+    baseRec,
+    baseConf
+  );
+
+  const Icon = COLLECTIVE_ICONS[collective.icon] || Shield;
+  const recLabel = recommendation === 1 ? "Aye" : recommendation === -1 ? "Nay" : "Abstain";
+  const recColor =
+    recommendation === 1
+      ? "text-emerald-400"
+      : recommendation === -1
+      ? "text-red-400"
+      : "text-amber-400";
+  const recBg =
+    recommendation === 1
+      ? "bg-emerald-500/10 border-emerald-500/20"
+      : recommendation === -1
+      ? "bg-red-500/10 border-red-500/20"
+      : "bg-amber-500/10 border-amber-500/20";
+  const RecIcon = recommendation === 1 ? ThumbsUp : recommendation === -1 ? ThumbsDown : Minus;
+
+  return (
+    <div className={clsx("glass-card p-5 border", collective.borderColor)}>
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-2">
+          <div className={clsx("w-8 h-8 rounded-lg flex items-center justify-center", collective.bgColor)}>
+            <Icon className={clsx("w-4 h-4", collective.color)} />
+          </div>
+          <div>
+            <h3 className="text-xs font-semibold text-white flex items-center gap-1.5">
+              <Crown className="w-3 h-3 text-polkadot-pink" />
+              Collective Recommendation
+            </h3>
+            <p className={clsx("text-[10px]", collective.color)}>
+              {collective.name}
+            </p>
+          </div>
+        </div>
+        <div className={clsx("flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-bold border", recBg, recColor)}>
+          <RecIcon className="w-4 h-4" />
+          {recLabel}
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-3">
+        <div className="p-2.5 rounded-lg bg-surface-2/50 border border-white/5 text-center">
+          <p className="text-[10px] text-gray-500 mb-0.5">Alignment</p>
+          <p className={clsx(
+            "text-lg font-bold",
+            alignment >= 60 ? "text-emerald-400" : alignment >= 40 ? "text-amber-400" : "text-red-400"
+          )}>
+            {alignment}%
+          </p>
+        </div>
+        <div className="p-2.5 rounded-lg bg-surface-2/50 border border-white/5 text-center">
+          <p className="text-[10px] text-gray-500 mb-0.5">Confidence</p>
+          <p className="text-lg font-bold text-white">{confidence}%</p>
+        </div>
+      </div>
+
+      <p className="text-[10px] text-gray-500 mt-3 text-center">
+        Based on {collective.name}&apos;s governance philosophy and this proposal&apos;s category
+      </p>
+    </div>
+  );
+}
+
 // ─── Main Page ───
 
 export default function ProposalDetailPage() {
@@ -1684,6 +1845,16 @@ export default function ProposalDetailPage() {
                 />
               </div>
             </div>
+          )}
+
+          {/* ── Collective Recommendation ── */}
+          {hasOnChain && (
+            <CollectiveRecommendationCard
+              categoryId={categoryId}
+              riskScore={riskScore}
+              baseRec={baseRec}
+              baseConf={baseConf}
+            />
           )}
 
           {/* ── Row 4: Vote + GovMind Stats ── */}

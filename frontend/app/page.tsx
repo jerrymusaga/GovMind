@@ -27,6 +27,8 @@ import {
   CheckCircle2,
   Loader2,
   Settings,
+  Users,
+  Shield,
 } from "lucide-react";
 import { useState } from "react";
 import Link from "next/link";
@@ -71,9 +73,9 @@ function HeroSection() {
             <Vote className="w-5 h-5" />
             Browse Proposals
           </Link>
-          <Link href="/delegation" className="btn-secondary flex items-center gap-2 text-base px-6 py-3">
-            <ArrowRightLeft className="w-5 h-5" />
-            Delegate Votes
+          <Link href="/collectives" className="btn-secondary flex items-center gap-2 text-base px-6 py-3">
+            <Shield className="w-5 h-5" />
+            Join a Collective
           </Link>
           <Link href="/identity" className="btn-secondary flex items-center gap-2 text-base px-6 py-3">
             <Fingerprint className="w-5 h-5" />
@@ -300,6 +302,13 @@ function FeaturesGrid() {
       desc: "Each proposal gets a 0-100 risk score with category breakdown — treasury impact, technical complexity, governance weight.",
       color: "from-amber-500/20 to-polkadot-pink/20",
       iconColor: "text-amber-400",
+    },
+    {
+      icon: Users,
+      title: "AI Voting Collectives",
+      desc: "Join governance tribes with shared philosophies. Each collective has AI-generated recommendations — pick your tribe, vote in one click.",
+      color: "from-violet-500/20 to-polkadot-pink/20",
+      iconColor: "text-violet-400",
     },
   ];
 
