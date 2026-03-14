@@ -10,11 +10,20 @@ interface ChatMessage {
   content: string;
 }
 
+interface CollectiveInfo {
+  name: string;
+  philosophy: string;
+  axes: number[];
+  riskTolerance: number;
+  focusAreas: string[];
+}
+
 interface ChatAgentProps {
   referendumIndex: number;
   proposalTitle: string;
   userIdentity?: { axes: number[]; riskTolerance: number } | null;
   analysisExists: boolean;
+  collective?: CollectiveInfo | null;
 }
 
 export default function ChatAgent({
@@ -22,6 +31,7 @@ export default function ChatAgent({
   proposalTitle,
   userIdentity,
   analysisExists,
+  collective,
 }: ChatAgentProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -57,6 +67,7 @@ export default function ChatAgent({
           message: text,
           history: messages.slice(-10),
           userIdentity: userIdentity || undefined,
+          collective: collective || undefined,
         }),
       });
 
@@ -90,7 +101,7 @@ export default function ChatAgent({
   const suggestions = [
     "Should I vote Aye or Nay?",
     "What are the main risks?",
-    "Explain the treasury impact",
+    ...(collective ? ["What would my collective vote?"] : ["Explain the treasury impact"]),
   ];
 
   return (

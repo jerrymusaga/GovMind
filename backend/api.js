@@ -232,7 +232,7 @@ async function handleChatRequest(id, req, res) {
     req.on("error", reject);
   });
 
-  const { message, history = [], userIdentity } = body;
+  const { message, history = [], userIdentity, collective } = body;
   if (!message || typeof message !== "string") {
     return json(res, { error: "message is required" }, 400);
   }
@@ -335,6 +335,19 @@ This user has set their governance preferences. Tailor your advice accordingly:`
     if (userIdentity.riskTolerance != null) {
       systemPrompt += `\nRisk Tolerance: ${userIdentity.riskTolerance}/100`;
     }
+  }
+
+  if (collective) {
+    systemPrompt += `
+
+=== AI VOTING COLLECTIVE ===
+This user is a member of the "${collective.name}" collective.
+Philosophy: ${collective.philosophy}
+Collective Governance Profile (6-axis): Treasury Conservative=${collective.axes[0]}, Treasury Growth=${collective.axes[1]}, Tech Progressive=${collective.axes[2]}, Tech Conservative=${collective.axes[3]}, Community=${collective.axes[4]}, Infrastructure=${collective.axes[5]}
+Risk Tolerance: ${collective.riskTolerance}/100
+Focus Areas: ${collective.focusAreas.join(", ")}
+
+When the user asks about how their collective would vote or what the collective thinks, use the collective's profile to reason about alignment with this proposal. If the user asks "should I vote with my collective?", compare their personal identity (if available) with the collective's profile and give nuanced advice.`;
   }
 
   // Trim history to last 10 messages

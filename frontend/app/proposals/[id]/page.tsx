@@ -1319,6 +1319,34 @@ export default function ProposalDetailPage() {
       }
     : null;
 
+  // Read joined collective for AI chat context
+  const [chatCollective, setChatCollective] = useState<{
+    name: string;
+    philosophy: string;
+    axes: number[];
+    riskTolerance: number;
+    focusAreas: string[];
+  } | null>(null);
+
+  useEffect(() => {
+    const stored = localStorage.getItem("govmind_collective");
+    if (stored) {
+      try {
+        const { collectiveId } = JSON.parse(stored);
+        const found = COLLECTIVES.find((c) => c.id === collectiveId);
+        if (found) {
+          setChatCollective({
+            name: found.name,
+            philosophy: found.philosophy,
+            axes: found.axes,
+            riskTolerance: found.riskTolerance,
+            focusAreas: found.focusAreas,
+          });
+        }
+      } catch {}
+    }
+  }, []);
+
   // Proposal metadata from Subsquare (for state / voting guard + content)
   const [proposalState, setProposalState] = useState<string | null>(null);
   const [proposalContent, setProposalContent] = useState<string | null>(null);
@@ -1909,6 +1937,7 @@ export default function ProposalDetailPage() {
         proposalTitle={title}
         userIdentity={chatIdentity}
         analysisExists={hasOnChain}
+        collective={chatCollective}
       />
     </div>
   );
