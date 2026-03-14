@@ -21,6 +21,9 @@
 13. [Viewing Vote History](#13-viewing-vote-history)
 14. [Admin: Oracle Management](#14-admin-oracle-management)
 15. [Admin: XCM Relay Configuration](#15-admin-xcm-relay-configuration)
+16. [Joining an AI Voting Collective](#16-joining-an-ai-voting-collective)
+17. [Voting with a Collective Recommendation](#17-voting-with-a-collective-recommendation)
+18. [Comparing Collectives](#18-comparing-collectives)
 
 ---
 
@@ -119,7 +122,7 @@
 
 1. User clicks a card and navigates to `/proposals/1836`.
 2. The **header** shows: referendum number, track, category, analysis version, and date analyzed.
-3. Links to **Polkassembly** and **on-chain proof** (Blockscout) are provided.
+3. Links to **Subsquare** and **on-chain proof** (Blockscout) are provided.
 
 ### Row 1: Recommendations & Risk
 
@@ -247,7 +250,7 @@
 **Scenario:**
 
 1. The AI backend detects a new active referendum #1850 on the Big Spender track.
-2. Backend fetches enriched data from Polkassembly: tally, comments, spending info, status.
+2. Backend fetches enriched data from Subsquare: tally, comments, spending info, status.
 3. Backend fetches historical precedents: similar past proposals by the same proposer.
 4. GPT-4o-mini produces a deep analysis: Aye recommendation, 85% confidence, risk 35.
 5. Backend publishes analysis on-chain via `AIOracle.publishAnalysis()`.
@@ -451,6 +454,86 @@ This is the flagship demo scenario for GovMind's personalization.
 
 ---
 
+## 16. Joining an AI Voting Collective
+
+**Actor:** A new or existing user who wants governance recommendations without manually configuring a 6-axis identity.
+
+**Scenario:**
+
+1. User navigates to `/collectives` from the navbar.
+2. They see four **AI Voting Collectives**, each representing a governance philosophy:
+   - **Sustainability Collective** — Environmental projects, green infrastructure, long-term ecosystem health
+   - **Innovation Collective** — Developer tooling, ecosystem expansion, protocol experimentation
+   - **Security Collective** — Runtime safety, security audits, conservative upgrades
+   - **Treasury Efficiency Collective** — Fiscal discipline, ROI analysis, spending accountability
+
+3. Each collective card displays:
+   - Name, description, and philosophy quote
+   - Focus areas as colored badges
+   - Member count
+   - **Alignment score** (if user has a governance identity) — cosine similarity between user's 6-axis profile and the collective's profile
+   - A **governance profile comparison** showing the user's axes vs. the collective's axes side-by-side
+
+4. Collectives are automatically sorted by alignment score (highest first).
+5. User clicks **"Join Collective"** on the one that matches their values.
+6. A "Your Collective" badge appears on the card, and the sidebar updates to show the active collective with a link to browse proposals.
+
+**Effect:** The user's collective choice is stored locally. On every proposal detail page, a **Collective Recommendation** card will now appear showing what the collective would vote.
+
+---
+
+## 17. Voting with a Collective Recommendation
+
+**Actor:** A user who has joined a collective and is viewing a proposal detail page.
+
+**Scenario:**
+
+1. User navigates to `/proposals/1843` after joining the Innovation Collective.
+2. Below the AI analysis panels, a **Collective Recommendation** card appears:
+   - Shows the Innovation Collective icon and name
+   - Displays the collective's recommendation: **"Aye"** (or Nay/Abstain)
+   - Shows two metrics: **Alignment** (how well this proposal category matches the collective's philosophy) and **Confidence** (adjusted based on alignment strength)
+
+3. The recommendation is computed client-side using the same logic as GovMindCore's `_computeAlignmentScore`:
+   - Map proposal `categoryId` to supporting/opposing preference axes
+   - Calculate alignment: `50 + (supportWeight - opposeWeight) / 2`
+   - Apply risk penalty if `riskScore > collective.riskTolerance`
+   - Alignment >= 60 pushes toward Aye; <= 40 pushes toward Nay
+
+4. Example: Proposal #1843 is a **Treasury Spend** (categoryId=0) with risk 45.
+   - Innovation Collective: support=Treasury Growth (90), oppose=Treasury Conservative (20)
+   - Alignment = 50 + (90-20)/2 = 85. Risk 45 <= tolerance 75 → no penalty.
+   - **Result: Aye, high confidence** — Innovation Collective supports ecosystem spending.
+
+5. The user clicks **"Vote Aye"** in the vote panel below, confident in the collective's recommendation.
+
+**What makes this powerful:** Users who don't want to spend hours evaluating proposals can simply follow their collective's philosophy. The AI does the analysis, the collective provides the lens, and the user votes with one click.
+
+---
+
+## 18. Comparing Collectives
+
+**Actor:** A user deciding which collective to join by comparing how different collectives would vote.
+
+**Scenario:**
+
+| Collective | Treasury Spend (cat 0, risk 45) | Technical Upgrade (cat 2, risk 60) | Community Initiative (cat 6, risk 30) |
+|-----------|------|------|------|
+| **Sustainability** | Abstain (alignment 35) | Nay (opposes risky tech) | **Aye** (community-first) |
+| **Innovation** | **Aye** (growth-focused) | **Aye** (tech-progressive) | Abstain (neutral) |
+| **Security** | Nay (conservative) | Nay (risk 60 > tolerance 20) | Nay (opposes community over infra) |
+| **Treasury Efficiency** | **Nay** (fiscal discipline) | Abstain (neutral on tech) | Nay (opposes non-infra spending) |
+
+**How they differ:**
+- Same proposal, four different recommendations — each rooted in the collective's 6-axis governance profile
+- A treasury-heavy proposal gets Aye from Innovation but Nay from Treasury Efficiency
+- A security audit proposal gets Aye from Security but Nay from Innovation (too conservative)
+- The alignment scores are transparent and deterministic — users can see exactly why each collective recommends what it does
+
+**The insight:** Collectives make governance accessible by reducing choice from "analyze everything yourself" to "pick the tribe that shares your values."
+
+---
+
 ## Summary: The GovMind Flow
 
 ```
@@ -465,6 +548,14 @@ This is the flagship demo scenario for GovMind's personalization.
                     │  Identity   │──── 6 preference axes
                     └──────┬──────┘     risk tolerance
                            │            confidence threshold
+                ┌──────────┼──────────┐
+                │                     │
+         ┌──────▼───┐         ┌──────▼───┐
+         │   Join   │         │  Browse  │
+         │Collective│         │ Directly │
+         └──────┬───┘         └──────┬───┘
+                │                     │
+                └──────────┬──────────┘
                     ┌──────▼──────┐
                     │   Browse    │
                     │  Proposals  │──── AI-analyzed cards
@@ -504,4 +595,4 @@ This is the flagship demo scenario for GovMind's personalization.
 
 ---
 
-*GovMind — AI thinks. You choose. XCM delivers.*
+*GovMind — AI thinks. Your tribe recommends. You choose. XCM delivers.*

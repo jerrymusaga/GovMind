@@ -41,6 +41,17 @@ const proposalStore = new Map();
 // Lock to prevent concurrent analyses of the same referendum
 const analysisInProgress = new Set();
 
+// ─── Collective Membership Store ───
+const collectiveMemberships = new Map(); // address → { collectiveId, joinedAt }
+
+function getCollectiveCounts() {
+  const counts = {};
+  for (const { collectiveId } of collectiveMemberships.values()) {
+    counts[collectiveId] = (counts[collectiveId] || 0) + 1;
+  }
+  return counts;
+}
+
 /**
  * Store a deep analysis result (called from index.js after GPT analysis)
  */
@@ -475,6 +486,44 @@ export function startApiServer(port = 3001) {
         });
       }
 
+      // ─── Collective Membership Endpoints ───
+
+      // GET /api/collectives — member counts
+      if (path === "/api/collectives" && req.method === "GET") {
+        return json(res, { counts: getCollectiveCounts(), total: collectiveMemberships.size });
+      }
+
+      // GET /api/collectives/membership/:address
+      const membershipMatch = path.match(/^\/api\/collectives\/membership\/(0x[a-fA-F0-9]+)$/);
+      if (membershipMatch && req.method === "GET") {
+        const addr = membershipMatch[1].toLowerCase();
+        const membership = collectiveMemberships.get(addr);
+        return json(res, { membership: membership || null });
+      }
+
+      // POST /api/collectives/join
+      if (path === "/api/collectives/join" && req.method === "POST") {
+        const body = await parseBody(req);
+        const { collectiveId, address } = body;
+        if (!collectiveId || !address) {
+          return json(res, { error: "collectiveId and address required" }, 400);
+        }
+        const addr = address.toLowerCase();
+        collectiveMemberships.set(addr, { collectiveId, joinedAt: Date.now() });
+        return json(res, { success: true, counts: getCollectiveCounts() });
+      }
+
+      // POST /api/collectives/leave
+      if (path === "/api/collectives/leave" && req.method === "POST") {
+        const body = await parseBody(req);
+        const { address } = body;
+        if (!address) {
+          return json(res, { error: "address required" }, 400);
+        }
+        collectiveMemberships.delete(address.toLowerCase());
+        return json(res, { success: true, counts: getCollectiveCounts() });
+      }
+
       // POST /api/analyze/:id — On-demand AI analysis
       const analyzeMatch = path.match(/^\/api\/analyze\/(\d+)$/);
       if (analyzeMatch && req.method === "POST") {
@@ -578,10 +627,24 @@ export function startApiServer(port = 3001) {
     console.log(`  POST /api/analyze/:id      — Trigger on-demand analysis`);
     console.log(`  POST /api/chat/:id         — AI agent chat`);
     console.log(`  GET  /api/proposal/:id     — Proposal metadata`);
-    console.log(`  GET  /api/health           — Health check\n`);
+    console.log(`  GET  /api/health           — Health check`);
+    console.log(`  GET  /api/collectives      — Collective member counts`);
+    console.log(`  POST /api/collectives/join  — Join a collective`);
+    console.log(`  POST /api/collectives/leave — Leave a collective\n`);
   });
 
   return server;
+}
+
+function parseBody(req) {
+  return new Promise((resolve, reject) => {
+    let data = "";
+    req.on("data", (chunk) => (data += chunk));
+    req.on("end", () => {
+      try { resolve(JSON.parse(data)); } catch { reject(new Error("Invalid JSON")); }
+    });
+    req.on("error", reject);
+  });
 }
 
 function logResult(id, analysis) {

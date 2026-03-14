@@ -483,7 +483,7 @@ export interface Collective {
   axes: number[];
   riskTolerance: number;
   focusAreas: string[];
-  memberCount: number;
+  memberCount?: number;
 }
 
 export const COLLECTIVES: Collective[] = [
@@ -499,7 +499,6 @@ export const COLLECTIVES: Collective[] = [
     axes: [70, 40, 40, 70, 80, 60],
     riskTolerance: 35,
     focusAreas: ["Environmental projects", "Green infrastructure", "Long-term ecosystem growth", "Community well-being"],
-    memberCount: 234,
   },
   {
     id: "innovation",
@@ -513,7 +512,6 @@ export const COLLECTIVES: Collective[] = [
     axes: [20, 90, 90, 10, 50, 80],
     riskTolerance: 75,
     focusAreas: ["Developer tooling", "Ecosystem expansion", "New parachains", "Protocol experimentation"],
-    memberCount: 412,
   },
   {
     id: "security",
@@ -527,7 +525,6 @@ export const COLLECTIVES: Collective[] = [
     axes: [60, 30, 30, 95, 30, 70],
     riskTolerance: 20,
     focusAreas: ["Runtime upgrades", "Security audits", "Risk mitigation", "Infrastructure hardening"],
-    memberCount: 178,
   },
   {
     id: "treasury",
@@ -541,7 +538,6 @@ export const COLLECTIVES: Collective[] = [
     axes: [95, 10, 50, 60, 40, 50],
     riskTolerance: 30,
     focusAreas: ["Treasury spending discipline", "ROI analysis", "Accountability frameworks", "Cost optimization"],
-    memberCount: 321,
   },
 ];
 

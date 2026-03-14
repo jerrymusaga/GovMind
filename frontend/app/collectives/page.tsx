@@ -104,7 +104,7 @@ function CollectiveCard({
               {collective.name}
             </h3>
             <p className="text-[11px] text-gray-500">
-              {collective.memberCount} members
+              {collective.memberCount || 0} {collective.memberCount === 1 ? "member" : "members"}
             </p>
           </div>
         </div>
@@ -246,32 +246,104 @@ function CollectiveCard({
 
 // ─── Collectives Page ───
 
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
+
 export default function CollectivesPage() {
   const { address, isConnected } = useAccount();
   const [joinedCollective, setJoinedCollective] = useState<string | null>(null);
+  const [memberCounts, setMemberCounts] = useState<Record<string, number>>({});
 
-  // Load joined collective from localStorage
+  // Fetch member counts from backend
+  const fetchCounts = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/api/collectives`);
+      if (res.ok) {
+        const data = await res.json();
+        setMemberCounts(data.counts || {});
+      }
+    } catch {}
+  };
+
+  // Load membership from backend (with localStorage fallback)
   useEffect(() => {
-    const stored = localStorage.getItem("govmind_collective");
-    if (stored) {
-      try {
-        const { collectiveId } = JSON.parse(stored);
-        setJoinedCollective(collectiveId);
-      } catch {}
-    }
-  }, []);
+    fetchCounts();
 
-  const handleJoin = (id: string) => {
+    if (!address) {
+      // Fall back to localStorage when not connected
+      const stored = localStorage.getItem("govmind_collective");
+      if (stored) {
+        try {
+          const { collectiveId } = JSON.parse(stored);
+          setJoinedCollective(collectiveId);
+        } catch {}
+      }
+      return;
+    }
+
+    // Fetch membership from backend
+    (async () => {
+      try {
+        const res = await fetch(`${API_BASE}/api/collectives/membership/${address}`);
+        if (res.ok) {
+          const data = await res.json();
+          if (data.membership) {
+            setJoinedCollective(data.membership.collectiveId);
+            localStorage.setItem(
+              "govmind_collective",
+              JSON.stringify(data.membership)
+            );
+          } else {
+            // Backend says not joined — clear localStorage too
+            setJoinedCollective(null);
+            localStorage.removeItem("govmind_collective");
+          }
+          return;
+        }
+      } catch {}
+      // Backend unreachable — fall back to localStorage
+      const stored = localStorage.getItem("govmind_collective");
+      if (stored) {
+        try {
+          const { collectiveId } = JSON.parse(stored);
+          setJoinedCollective(collectiveId);
+        } catch {}
+      }
+    })();
+  }, [address]);
+
+  const handleJoin = async (id: string) => {
     setJoinedCollective(id);
     localStorage.setItem(
       "govmind_collective",
       JSON.stringify({ collectiveId: id, joinedAt: Date.now() })
     );
+    try {
+      const res = await fetch(`${API_BASE}/api/collectives/join`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ collectiveId: id, address }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setMemberCounts(data.counts || {});
+      }
+    } catch {}
   };
 
-  const handleLeave = () => {
+  const handleLeave = async () => {
     setJoinedCollective(null);
     localStorage.removeItem("govmind_collective");
+    try {
+      const res = await fetch(`${API_BASE}/api/collectives/leave`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ address }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setMemberCounts(data.counts || {});
+      }
+    } catch {}
   };
 
   // Read user identity
@@ -295,10 +367,14 @@ export default function CollectivesPage() {
     ? Array.from(existingWeights).map(Number)
     : null;
 
-  // Sort collectives by alignment
+  // Merge live member counts into collectives and sort by alignment
   const sortedCollectives = useMemo(() => {
-    if (!userWeights) return COLLECTIVES;
-    return [...COLLECTIVES].sort((a, b) => {
+    const withCounts = COLLECTIVES.map((c) => ({
+      ...c,
+      memberCount: memberCounts[c.id] || 0,
+    }));
+    if (!userWeights) return withCounts;
+    return withCounts.sort((a, b) => {
       const alignA = computeAlignment(userWeights, a.axes);
       const alignB = computeAlignment(userWeights, b.axes);
       return alignB - alignA;
