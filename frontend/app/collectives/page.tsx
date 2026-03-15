@@ -85,14 +85,14 @@ function CollectiveCard({
   isJoined,
   onJoin,
   onLeave,
-  isPending,
+  pendingId,
 }: {
   collective: Collective;
   userWeights: number[] | null;
   isJoined: boolean;
   onJoin: (id: string) => void;
   onLeave: () => void;
-  isPending: boolean;
+  pendingId: string | null;
 }) {
   const Icon = COLLECTIVE_ICONS[collective.icon] || Shield;
   const alignment = userWeights
@@ -241,16 +241,16 @@ function CollectiveCard({
       {isJoined ? (
         <button
           onClick={onLeave}
-          disabled={isPending}
+          disabled={pendingId !== null}
           className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-xs font-medium bg-surface-2 border border-white/10 text-gray-400 hover:text-red-400 hover:border-red-500/20 transition-all disabled:opacity-50"
         >
-          {isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <LogOut className="w-3.5 h-3.5" />}
-          {isPending ? "Leaving..." : "Leave Collective"}
+          {pendingId === "__leave" ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <LogOut className="w-3.5 h-3.5" />}
+          {pendingId === "__leave" ? "Leaving..." : "Leave Collective"}
         </button>
       ) : (
         <button
           onClick={() => onJoin(collective.id)}
-          disabled={isPending}
+          disabled={pendingId !== null}
           className={clsx(
             "w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-xs font-medium border transition-all hover:scale-[1.02] disabled:opacity-50",
             collective.bgColor,
@@ -258,8 +258,8 @@ function CollectiveCard({
             collective.color
           )}
         >
-          {isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <UserPlus className="w-3.5 h-3.5" />}
-          {isPending ? "Joining..." : "Join Collective"}
+          {pendingId === collective.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <UserPlus className="w-3.5 h-3.5" />}
+          {pendingId === collective.id ? "Joining..." : "Join Collective"}
         </button>
       )}
     </div>
@@ -270,6 +270,8 @@ function CollectiveCard({
 
 export default function CollectivesPage() {
   const { address, isConnected } = useAccount();
+
+  const [pendingId, setPendingId] = useState<string | null>(null);
 
   // ─── On-chain reads: user's collective membership ───
   const { data: userCollectiveId, refetch: refetchMembership } = useReadContract({
@@ -295,9 +297,10 @@ export default function CollectivesPage() {
   const { writeContract, data: txHash, isPending: writePending } = useWriteContract();
   const { isSuccess: txConfirmed } = useWaitForTransactionReceipt({ hash: txHash });
 
-  // Refetch after tx confirms
+  // Refetch after tx confirms and clear pending state
   useEffect(() => {
     if (txConfirmed) {
+      setPendingId(null);
       refetchMembership();
       refetchCounts();
     }
@@ -334,6 +337,7 @@ export default function CollectivesPage() {
   const handleJoin = (id: string) => {
     const onchainId = FRONTEND_ID_MAP[id];
     if (!onchainId) return;
+    setPendingId(id);
     writeContract({
       address: ADDRESSES.collectiveRegistry,
       abi: COLLECTIVE_REGISTRY_ABI,
@@ -343,6 +347,7 @@ export default function CollectivesPage() {
   };
 
   const handleLeave = () => {
+    setPendingId("__leave");
     writeContract({
       address: ADDRESSES.collectiveRegistry,
       abi: COLLECTIVE_REGISTRY_ABI,
@@ -558,7 +563,7 @@ export default function CollectivesPage() {
               isJoined={joinedCollective === collective.id}
               onJoin={handleJoin}
               onLeave={handleLeave}
-              isPending={writePending}
+              pendingId={writePending ? pendingId : null}
             />
           ))}
         </div>
