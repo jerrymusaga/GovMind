@@ -43,7 +43,7 @@ function HeroSection() {
       <div className="inline-flex items-center gap-2 px-4 py-1.5 mb-6 rounded-full bg-polkadot-pink/10 border border-polkadot-pink/20">
         <Sparkles className="w-3.5 h-3.5 text-polkadot-pink" />
         <span className="text-xs font-medium text-polkadot-pink">
-          Polkadot Solidity Hackathon 2026
+          AI-Powered Governance · Live on Testnet
         </span>
       </div>
 
