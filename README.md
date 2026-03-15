@@ -646,7 +646,7 @@ Node.js REST API on port 3001. No framework — uses native `http` module.
 |----------|---------|-------------|
 | ScaleCodecPVM | [`0x9c0E4B07f26726d6646C8465cfA39f9662550cDb`](https://blockscout-testnet.polkadot.io/address/0x9c0E4B07f26726d6646C8465cfA39f9662550cDb) | 1,523 bytes |
 | AlignmentScorer | [`0x60B9D9D2097963ADf51Cf6c1E1b80309c2959238`](https://blockscout-testnet.polkadot.io/address/0x60B9D9D2097963ADf51Cf6c1E1b80309c2959238) | 690 bytes |
-| CollectiveAggregator | *Pending deployment* | ~800 bytes (est.) |
+| CollectiveAggregator | [`0x8561fe6E3A635d5bD6a529Bf0021Cba894D06e13`](https://blockscout-testnet.polkadot.io/address/0x8561fe6E3A635d5bD6a529Bf0021Cba894D06e13) | 1,148 bytes |
 
 **Network:** Polkadot Hub Testnet | **Chain ID:** `420420417` | **RPC:** `https://eth-rpc-testnet.polkadot.io/`
 

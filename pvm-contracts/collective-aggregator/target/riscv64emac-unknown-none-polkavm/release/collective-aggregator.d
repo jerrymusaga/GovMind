@@ -1,0 +1,1 @@
+/Users/musaga/GovMind/pvm-contracts/collective-aggregator/target/riscv64emac-unknown-none-polkavm/release/collective-aggregator: /Users/musaga/GovMind/pvm-contracts/collective-aggregator/src/collective_aggregator.rs

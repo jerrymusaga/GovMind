@@ -20,6 +20,7 @@ export const ADDRESSES = {
   xcmRelay: "0xFf63bF7E3e0eB21BFB552B6e32de08a98Ad01faF" as `0x${string}`,
   scaleCodecPVM: "0x9c0E4B07f26726d6646C8465cfA39f9662550cDb" as `0x${string}`,
   alignmentScorerPVM: "0x60B9D9D2097963ADf51Cf6c1E1b80309c2959238" as `0x${string}`,
+  collectiveAggregatorPVM: "0x8561fe6E3A635d5bD6a529Bf0021Cba894D06e13" as `0x${string}`,
   collectiveRegistry: "0x8415f90D44dAb2943836C07F1bb6f21A70174649" as `0x${string}`,
 };
 

@@ -24,8 +24,9 @@ const path = require("path");
 require("dotenv").config();
 
 // Contract addresses (update after EVM deployment)
-const XCM_RELAY_ADDRESS = process.env.XCM_RELAY_ADDRESS || "0x34a2f569D91561A583432F8DEC0055C4f811DB73";
-const GOVMIND_CORE_ADDRESS = process.env.GOVMIND_CORE_ADDRESS || "0x8DF87ba9728C42a5597e7398bC369B86c4D6386f";
+const XCM_RELAY_ADDRESS = process.env.XCM_RELAY_ADDRESS || "0xFf63bF7E3e0eB21BFB552B6e32de08a98Ad01faF";
+const GOVMIND_CORE_ADDRESS = process.env.GOVMIND_CORE_ADDRESS || "0x9738ceE50C7ce9E45d32a27D43886D61EF7D3f6a";
+const COLLECTIVE_REGISTRY_ADDRESS = process.env.COLLECTIVE_REGISTRY_ADDRESS || "0x8415f90D44dAb2943836C07F1bb6f21A70174649";
 
 const RPC_URL = process.env.RPC_URL || "https://eth-rpc-testnet.polkadot.io/";
 
@@ -40,6 +41,12 @@ const GOVMIND_CORE_ABI = [
   "function setPVMScorer(address _scorer, bool _enabled) external",
   "function usePVMScorer() view returns (bool)",
   "function alignmentScorerPVM() view returns (address)",
+];
+
+const COLLECTIVE_REGISTRY_ABI = [
+  "function setPVMAggregator(address _aggregator, bool _enabled) external",
+  "function usePVMAggregator() view returns (bool)",
+  "function aggregatorPVM() view returns (address)",
 ];
 
 function loadBlob(name) {
@@ -78,7 +85,7 @@ async function main() {
   }
 
   // ── 1. Deploy SCALE Codec PVM ──────────────────────────────────────
-  console.log("\n  [1/4] Deploying ScaleCodecPVM (Rust → RISC-V → PVM)...");
+  console.log("\n  [1/6] Deploying ScaleCodecPVM (Rust → RISC-V → PVM)...");
   const scaleBlob = loadBlob("scale-codec");
   console.log(`      Binary: ${scaleBlob.length} bytes`);
 
@@ -90,7 +97,7 @@ async function main() {
   console.log(`      ScaleCodecPVM @ ${scaleAddress}`);
 
   // ── 2. Deploy Alignment Scorer PVM ─────────────────────────────────
-  console.log("\n  [2/4] Deploying AlignmentScorer (Rust → RISC-V → PVM)...");
+  console.log("\n  [2/6] Deploying AlignmentScorer (Rust → RISC-V → PVM)...");
   const alignBlob = loadBlob("alignment-scorer");
   console.log(`      Binary: ${alignBlob.length} bytes`);
 
@@ -101,8 +108,20 @@ async function main() {
   const alignAddress = alignReceipt.contractAddress;
   console.log(`      AlignmentScorer @ ${alignAddress}`);
 
-  // ── 3. Wire PVM SCALE Codec into XCMGovernanceRelay ────────────────
-  console.log("\n  [3/4] Wiring ScaleCodecPVM into XCMGovernanceRelay...");
+  // ── 3. Deploy Collective Aggregator PVM ────────────────────────────
+  console.log("\n  [3/6] Deploying CollectiveAggregator (Rust → RISC-V → PVM)...");
+  const aggBlob = loadBlob("collective-aggregator");
+  console.log(`      Binary: ${aggBlob.length} bytes`);
+
+  const aggTx = await wallet.sendTransaction({
+    data: "0x" + aggBlob.toString("hex"),
+  });
+  const aggReceipt = await aggTx.wait();
+  const aggAddress = aggReceipt.contractAddress;
+  console.log(`      CollectiveAggregator @ ${aggAddress}`);
+
+  // ── 4. Wire PVM SCALE Codec into XCMGovernanceRelay ────────────────
+  console.log("\n  [4/6] Wiring ScaleCodecPVM into XCMGovernanceRelay...");
   try {
     const xcmRelay = new ethers.Contract(XCM_RELAY_ADDRESS, XCM_RELAY_ABI, wallet);
     const tx3 = await xcmRelay.setPVMCodec(scaleAddress, true);
@@ -112,13 +131,24 @@ async function main() {
     console.log(`      Skipped (owner mismatch or contract not found). Wire manually.`);
   }
 
-  // ── 4. Wire PVM Alignment Scorer into GovMindCore ──────────────────
-  console.log("\n  [4/4] Wiring AlignmentScorer into GovMindCore...");
+  // ── 5. Wire PVM Alignment Scorer into GovMindCore ──────────────────
+  console.log("\n  [5/6] Wiring AlignmentScorer into GovMindCore...");
   try {
     const govMindCore = new ethers.Contract(GOVMIND_CORE_ADDRESS, GOVMIND_CORE_ABI, wallet);
     const tx4 = await govMindCore.setPVMScorer(alignAddress, true);
     await tx4.wait();
     console.log(`      setPVMScorer(${alignAddress}, true) — done`);
+  } catch (e) {
+    console.log(`      Skipped (owner mismatch or contract not found). Wire manually.`);
+  }
+
+  // ── 6. Wire PVM Collective Aggregator into CollectiveRegistry ──────
+  console.log("\n  [6/6] Wiring CollectiveAggregator into CollectiveRegistry...");
+  try {
+    const collectiveRegistry = new ethers.Contract(COLLECTIVE_REGISTRY_ADDRESS, COLLECTIVE_REGISTRY_ABI, wallet);
+    const tx6 = await collectiveRegistry.setPVMAggregator(aggAddress, true);
+    await tx6.wait();
+    console.log(`      setPVMAggregator(${aggAddress}, true) — done`);
   } catch (e) {
     console.log(`      Skipped (owner mismatch or contract not found). Wire manually.`);
   }
@@ -136,6 +166,11 @@ async function main() {
            Cross-VM: SCALE encoding on RISC-V
       └─ XCM Precompile (0x0A0000)
            Cross-chain vote relay to Relay Chain
+
+    CollectiveRegistry.sol [EVM]
+      └─ CollectiveAggregator [PVM / Rust] @ ${aggAddress}
+           Cross-VM: dynamic profile recalculation on RISC-V
+           EVM → PVM → EVM loop (first on Polkadot Hub)
 
   Two VMs. Three layers. No bridge.
   `);

@@ -159,6 +159,12 @@ function ArchitectureSection() {
     functionName: "usePVMScorer",
   });
 
+  const { data: pvmAggregatorEnabled } = useReadContract({
+    address: ADDRESSES.collectiveRegistry,
+    abi: PVM_STATUS_ABI,
+    functionName: "usePVMAggregator",
+  });
+
   const { data: relayEnabled } = useReadContract({
     address: ADDRESSES.xcmRelay,
     abi: XCM_RELAY_ABI,
@@ -192,7 +198,7 @@ function ArchitectureSection() {
           { label: "AI Analyses", value: analysisCount ? Number(analysisCount) : 0, color: "text-polkadot-pink" },
           { label: "XCM Relayed", value: totalRelayed ? Number(totalRelayed) : 0, color: "text-polkadot-purple" },
           { label: "Relay Status", value: relayEnabled ? "Live" : "Ready", color: "text-emerald-400" },
-          { label: "PVM Modules", value: `${(pvmCodecEnabled ? 1 : 0) + (pvmScorerEnabled ? 1 : 0)}/2`, color: "text-cyan-400" },
+          { label: "PVM Modules", value: `${(pvmCodecEnabled ? 1 : 0) + (pvmScorerEnabled ? 1 : 0) + (pvmAggregatorEnabled ? 1 : 0)}/3`, color: "text-cyan-400" },
         ].map(({ label, value, color }) => (
           <div key={label} className="p-4 rounded-xl bg-surface-1/50 border border-white/5 text-center">
             <p className={`text-2xl font-bold ${color}`}>{value}</p>
@@ -211,6 +217,7 @@ function ArchitectureSection() {
             { icon: Code2, label: "GovMindCore", sub: "EVM Solidity", color: "border-polkadot-pink/30", iconColor: "text-polkadot-pink" },
             { icon: Cpu, label: "AlignmentScorer", sub: "PVM Rust · 690B", color: "border-cyan-500/30", iconColor: "text-cyan-400" },
             { icon: Cpu, label: "ScaleCodecPVM", sub: "PVM Rust · 1,523B", color: "border-cyan-500/30", iconColor: "text-cyan-400" },
+            { icon: Cpu, label: "Aggregator", sub: "PVM Rust · 1,148B", color: "border-cyan-500/30", iconColor: "text-cyan-400" },
             { icon: Layers, label: "XCM Precompile", sub: "0x0A0000", color: "border-polkadot-purple/30", iconColor: "text-polkadot-purple" },
             { icon: Globe, label: "Relay Chain", sub: "convictionVoting", color: "border-emerald-500/30", iconColor: "text-emerald-400" },
           ].map(({ icon: Icon, label, sub, color, iconColor }, i, arr) => (
@@ -249,6 +256,17 @@ function ArchitectureSection() {
             <span className="text-gray-400">AlignmentScorer</span>
             <span className={`font-medium ${pvmScorerEnabled ? "text-cyan-400" : "text-gray-500"}`}>
               {pvmScorerEnabled ? "Active" : "Deployed"}
+            </span>
+          </div>
+          <div className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-[11px] ${
+            pvmAggregatorEnabled
+              ? "bg-cyan-500/10 border border-cyan-500/20"
+              : "bg-surface-2 border border-white/10"
+          }`}>
+            <span className={`w-1.5 h-1.5 rounded-full ${pvmAggregatorEnabled ? "bg-cyan-400 animate-pulse" : "bg-gray-600"}`} />
+            <span className="text-gray-400">CollectiveAggregator</span>
+            <span className={`font-medium ${pvmAggregatorEnabled ? "text-cyan-400" : "text-gray-500"}`}>
+              {pvmAggregatorEnabled ? "Active" : "Deployed"}
             </span>
           </div>
         </div>
@@ -346,6 +364,7 @@ function ContractsSection() {
     { name: "XCMRelay", addr: ADDRESSES.xcmRelay, type: "EVM" },
     { name: "ScaleCodecPVM", addr: ADDRESSES.scaleCodecPVM, type: "PVM" },
     { name: "AlignmentScorerPVM", addr: ADDRESSES.alignmentScorerPVM, type: "PVM" },
+    { name: "CollectiveAggregator", addr: ADDRESSES.collectiveAggregatorPVM, type: "PVM" },
     { name: "CollectiveRegistry", addr: ADDRESSES.collectiveRegistry, type: "EVM" },
   ];
 
