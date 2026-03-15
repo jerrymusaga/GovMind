@@ -1,11 +1,11 @@
 {
   "/_not-found/page": "app/_not-found/page.js",
-  "/api/referenda/route": "app/api/referenda/route.js",
-  "/api/referenda/[id]/route": "app/api/referenda/[id]/route.js",
-  "/identity/page": "app/identity/page.js",
-  "/proposals/[id]/page": "app/proposals/[id]/page.js",
-  "/page": "app/page.js",
   "/collectives/page": "app/collectives/page.js",
+  "/identity/page": "app/identity/page.js",
+  "/page": "app/page.js",
+  "/api/referenda/[id]/route": "app/api/referenda/[id]/route.js",
+  "/proposals/[id]/page": "app/proposals/[id]/page.js",
+  "/api/referenda/route": "app/api/referenda/route.js",
   "/proposals/page": "app/proposals/page.js",
   "/delegation/page": "app/delegation/page.js"
 }

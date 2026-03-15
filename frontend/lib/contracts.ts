@@ -490,6 +490,20 @@ export const PVM_STATUS_ABI = [
     inputs: [],
     outputs: [{ name: "", type: "address" }],
   },
+  {
+    name: "usePVMAggregator",
+    type: "function",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ name: "", type: "bool" }],
+  },
+  {
+    name: "aggregatorPVM",
+    type: "function",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ name: "", type: "address" }],
+  },
 ] as const;
 
 export const COLLECTIVE_REGISTRY_ABI = [
