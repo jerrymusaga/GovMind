@@ -56,7 +56,7 @@ contract DeployGovMind is Script {
         console.log("PVM AlignmentScorer wired to GovMindCore");
 
         // 8. Deploy CollectiveRegistry and seed collectives
-        CollectiveRegistry collectiveRegistry = new CollectiveRegistry();
+        CollectiveRegistry collectiveRegistry = new CollectiveRegistry(address(identityVault));
         console.log("CollectiveRegistry deployed to:", address(collectiveRegistry));
 
         // Seed: Sustainability Guardians

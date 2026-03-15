@@ -318,22 +318,58 @@ Weaknesses: ${deep.strengthsAndWeaknesses.weaknesses?.join("; ") || "N/A"}`;
   }
 
   if (userIdentity) {
-    const axisLabels = [
-      "Treasury Conservative ↔ Growth",
-      "Technical Progressive ↔ Conservative",
-      "Community ↔ Infrastructure",
+    const axisNames = [
+      "Treasury Conservative",
+      "Treasury Growth",
+      "Tech Progressive",
+      "Tech Conservative",
+      "Community Focused",
+      "Infrastructure",
     ];
     systemPrompt += `
 
 === USER GOVERNANCE IDENTITY ===
-This user has set their governance preferences. Tailor your advice accordingly:`;
+This user has a 6-axis on-chain governance identity stored in IdentityVault. Their preferences:`;
     if (userIdentity.axes) {
-      for (let i = 0; i < Math.min(userIdentity.axes.length, 3); i++) {
-        systemPrompt += `\n${axisLabels[i]}: ${userIdentity.axes[i]}/100`;
+      for (let i = 0; i < Math.min(userIdentity.axes.length, 6); i++) {
+        systemPrompt += `\n${axisNames[i]}: ${userIdentity.axes[i]}/100`;
       }
     }
     if (userIdentity.riskTolerance != null) {
       systemPrompt += `\nRisk Tolerance: ${userIdentity.riskTolerance}/100`;
+    }
+
+    systemPrompt += `
+
+=== HOW PERSONALIZATION WORKS ===
+GovMind personalizes recommendations using the on-chain _computeAlignmentScore algorithm in GovMindCore.sol:
+
+1. CATEGORY-TO-AXES MAPPING: Each proposal category maps to a supporting and opposing axis:
+   - Treasury Spend/Tip/Bounty (cat 0,1,8) → Treasury Growth supports, Treasury Conservative opposes
+   - Technical Upgrade (cat 2) → Tech Progressive supports, Tech Conservative opposes
+   - Governance Change/Community (cat 3,6) → Community Focused supports, Infrastructure opposes
+   - Staking/Bridge/Infrastructure (cat 4,5,7) → Infrastructure supports, Community Focused opposes
+
+2. ALIGNMENT SCORE: alignment = 50 + (supportWeight - opposeWeight) / 2, then adjusted by risk penalty if proposal risk > user's tolerance
+
+3. PERSONALIZED RECOMMENDATION:
+   - Alignment >= 60 and base AI says Aye/Abstain → Personalized = AYE (user values align)
+   - Alignment >= 60 but base AI says Nay → Personalized = ABSTAIN (conflicting signals)
+   - Alignment <= 40 and base AI says Nay/Abstain → Personalized = NAY (user values oppose)
+   - Alignment <= 40 but base AI says Aye → Personalized = NAY (user values override)
+   - Alignment 41-59 → Keep the base AI recommendation unchanged
+
+This means the SAME proposal can get different recommendations for different users. If the user asks why their recommendation differs from the base AI analysis, explain it using their specific axis values and this algorithm.`;
+    if (userIdentity.personalizedRec != null) {
+      const persRecLabel = userIdentity.personalizedRec === 1 ? "Aye" : userIdentity.personalizedRec === -1 ? "Nay" : "Abstain";
+      systemPrompt += `
+
+=== PERSONALIZED RESULT FOR THIS USER ===
+Personalized Recommendation: ${persRecLabel}
+Adjusted Confidence: ${userIdentity.adjustedConfidence || "N/A"}%
+Alignment Score: ${userIdentity.alignmentScore || "N/A"}/100
+${analysis ? `Base AI Recommendation: ${analysis.recommendation === 1 ? "Aye" : analysis.recommendation === -1 ? "Nay" : "Abstain"}` : ""}
+${userIdentity.personalizedRec !== (analysis?.recommendation) ? `NOTE: The recommendation changed from the base AI analysis because this user's governance identity produced an alignment score of ${userIdentity.alignmentScore}/100 for this proposal category.` : ""}`;
     }
   }
 
@@ -341,13 +377,66 @@ This user has set their governance preferences. Tailor your advice accordingly:`
     systemPrompt += `
 
 === AI VOTING COLLECTIVE ===
-This user is a member of the "${collective.name}" collective.
+This user is a member of the "${collective.name}" collective (on-chain via CollectiveRegistry contract).
 Philosophy: ${collective.philosophy}
 Collective Governance Profile (6-axis): Treasury Conservative=${collective.axes[0]}, Treasury Growth=${collective.axes[1]}, Tech Progressive=${collective.axes[2]}, Tech Conservative=${collective.axes[3]}, Community=${collective.axes[4]}, Infrastructure=${collective.axes[5]}
 Risk Tolerance: ${collective.riskTolerance}/100
 Focus Areas: ${collective.focusAreas.join(", ")}
 
-When the user asks about how their collective would vote or what the collective thinks, use the collective's profile to reason about alignment with this proposal. If the user asks "should I vote with my collective?", compare their personal identity (if available) with the collective's profile and give nuanced advice.`;
+The collective's recommendation is computed using the SAME alignment algorithm as personal recommendations, but using the collective's 6-axis profile instead of the user's personal profile. When the user asks about the collective's recommendation, apply the category-to-axes mapping and alignment calculation to the collective's axes.`;
+
+    // Detect conflict between user identity and collective
+    if (userIdentity && userIdentity.axes && collective.axes) {
+      // Compute cosine similarity between user and collective profiles
+      let dot = 0, magA = 0, magB = 0;
+      for (let i = 0; i < 6; i++) {
+        const u = userIdentity.axes[i] || 0;
+        const c = collective.axes[i] || 0;
+        dot += u * c;
+        magA += u * u;
+        magB += c * c;
+      }
+      const alignment = magA > 0 && magB > 0
+        ? Math.round((dot / (Math.sqrt(magA) * Math.sqrt(magB))) * 100)
+        : 50;
+
+      // Find the axes with biggest disagreements
+      const disagreements = [];
+      const axisNames = ["Treasury Conservative", "Treasury Growth", "Tech Progressive", "Tech Conservative", "Community Focused", "Infrastructure"];
+      for (let i = 0; i < 6; i++) {
+        const diff = Math.abs((userIdentity.axes[i] || 0) - (collective.axes[i] || 0));
+        if (diff >= 30) {
+          disagreements.push(`${axisNames[i]} (you: ${userIdentity.axes[i]}, collective: ${collective.axes[i]}, gap: ${diff})`);
+        }
+      }
+
+      systemPrompt += `
+
+=== IDENTITY vs COLLECTIVE ALIGNMENT ===
+Alignment between this user's personal identity and their collective: ${alignment}%`;
+
+      if (alignment < 60) {
+        systemPrompt += `
+⚠️ CONFLICT DETECTED: This user's personal governance identity is MISALIGNED with their collective (${alignment}% alignment).
+Major disagreements: ${disagreements.join("; ") || "General profile divergence"}
+
+IMPORTANT BEHAVIOR: When the user's personal recommendation and the collective's recommendation DISAGREE on this proposal, you MUST proactively flag this conflict. Explain:
+1. What your personal identity says (and why, based on your axis values)
+2. What your collective recommends (and why, based on its axis values)
+3. Where the specific disagreement lies (which axes conflict)
+4. Your honest advice: consider whether this collective still represents their values, or whether they should vote with their personal identity on this one
+
+Be direct and helpful — don't just say "it depends." The user joined this collective but their values don't match. Help them navigate that tension.`;
+      } else if (alignment < 80) {
+        systemPrompt += `
+Note: Moderate alignment (${alignment}%). The user and collective mostly agree but may diverge on some proposal types.
+${disagreements.length > 0 ? `Areas of disagreement: ${disagreements.join("; ")}` : ""}
+If their personal recommendation differs from the collective's on this proposal, gently point out the divergence and explain which axes cause it.`;
+      } else {
+        systemPrompt += `
+Strong alignment (${alignment}%). The user's personal values closely match their collective. Their recommendations should usually agree.`;
+      }
+    }
   }
 
   // Trim history to last 10 messages

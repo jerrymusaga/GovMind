@@ -9,11 +9,15 @@ contract DeployCollectives is Script {
         uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
         address deployer = vm.addr(deployerPrivateKey);
 
+        // Read IdentityVault address from env
+        address identityVault = vm.envAddress("IDENTITY_VAULT_ADDRESS");
+
         console.log("Deploying CollectiveRegistry with account:", deployer);
+        console.log("IdentityVault:", identityVault);
 
         vm.startBroadcast(deployerPrivateKey);
 
-        CollectiveRegistry registry = new CollectiveRegistry();
+        CollectiveRegistry registry = new CollectiveRegistry(identityVault);
         console.log("CollectiveRegistry deployed to:", address(registry));
 
         // Seed: Sustainability Guardians
@@ -55,8 +59,10 @@ contract DeployCollectives is Script {
         vm.stopBroadcast();
 
         console.log("\n========================================");
-        console.log("  CollectiveRegistry Deployed!");
+        console.log("  CollectiveRegistry v2 Deployed!");
+        console.log("  Dynamic profiles + IdentityVault linked");
         console.log("  4 collectives seeded on-chain");
+        console.log("  Seed weight: 30%% (70%% member influence)");
         console.log("  Address:", address(registry));
         console.log("========================================");
     }

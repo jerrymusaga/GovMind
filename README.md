@@ -40,41 +40,41 @@ GovMind is an AI governance intelligence platform that makes OpenGov accessible 
 ┌─────────────────────────────────────────────────────────────────┐
 │  Frontend (Next.js 14 + Wagmi v2 + RainbowKit + TailwindCSS)   │
 │  ├── Dashboard with live on-chain stats & XCM relay status      │
-│  ├── Proposal detail with deep AI analysis visualizations       │
-│  ├── AI Voting Collectives (join a tribe, one-click voting)     │
+│  ├── Proposal detail with AI analysis + cross-collective panel  │
+│  ├── On-chain Collectives (join/leave via tx, dynamic profiles) │
 │  ├── Identity builder (6-axis radar chart + delegation config)  │
 │  ├── Vote panel with conviction & amount controls               │
-│  └── AI Agent chat (floating, context-aware per proposal)       │
+│  └── AI Agent chat (context-aware, conflict detection)          │
 └───────────────────────────────┬─────────────────────────────────┘
                                 │
 ┌───────────────────────────────▼─────────────────────────────────┐
 │  EVM Contracts (Solidity 0.8.28 on Polkadot Hub)     [Track 1]  │
-│  ├── GovMindCore.sol      — Vote orchestration & personalization│
-│  ├── IdentityVault.sol    — 6-axis governance identity storage  │
-│  ├── AIOracle.sol         — AI analysis bridge (on-chain proof) │
-│  ├── XCMGovernanceRelay.sol — XCM vote relay to Relay Chain     │
-│  └── ScaleCodec.sol       — Pure Solidity SCALE encoding lib    │
+│  ├── GovMindCore.sol         — Vote orchestration & personalize │
+│  ├── IdentityVault.sol       — 6-axis governance identity store │
+│  ├── AIOracle.sol            — AI analysis bridge (on-chain)    │
+│  ├── XCMGovernanceRelay.sol  — XCM vote relay to Relay Chain    │
+│  ├── CollectiveRegistry.sol  — On-chain collectives + dynamics  │
+│  └── ScaleCodec.sol          — Pure Solidity SCALE encoding     │
 └──────────┬────────────────────┬─────────────────────────────────┘
            │ cross-VM dispatch  │ XCM Precompile (0x0A0000)
            ▼ (pallet-revive)   ▼
-┌──────────────────────┐  ┌──────────────────────────────────────┐
-│  PVM Contracts       │  │  Polkadot Relay Chain                │
-│  (Rust → RISC-V)     │  │  └── convictionVoting.vote()         │
-│  [Track 2]           │  │      Pallet 20, call 0               │
-│  ├── ScaleCodecPVM   │  └──────────────────────────────────────┘
-│  │   Native SCALE    │                   ▲
-│  │   encoding        │  ┌────────────────┴─────────────────────┐
-│  └── AlignmentScorer │  │  AI Backend (Node.js + GPT-4o-mini)  │
-│      Governance      │  │  ├── Subsquare API — tally, data  │
-│      personalization │  │  ├── Deep analysis — risk, treasury   │
-│      on RISC-V       │  │  ├── Change detection & re-analysis  │
-└──────────────────────┘  │  ├── AI Agent chat — governance Q&A  │
-                          │  ├── Collective membership API        │
-                          │  └── REST API (port 3001)             │
-                          └──────────────────────────────────────┘
+┌───────────────────────────┐  ┌──────────────────────────────────┐
+│  PVM Contracts            │  │  Polkadot Relay Chain             │
+│  (Rust → RISC-V)          │  │  └── convictionVoting.vote()      │
+│  [Track 2]                │  │      Pallet 20, call 0            │
+│  ├── ScaleCodecPVM        │  └──────────────────────────────────┘
+│  │   Native SCALE encode  │                   ▲
+│  ├── AlignmentScorer      │  ┌────────────────┴─────────────────┐
+│  │   Personalization      │  │  AI Backend (Node.js + GPT-4o)   │
+│  │   on RISC-V            │  │  ├── Subsquare API — tally, data │
+│  └── CollectiveAggregator │  │  ├── Deep analysis — risk, $$$   │
+│      Dynamic profile      │  │  ├── Change detection & re-analyze│
+│      recalculation        │  │  ├── AI Agent chat — governance   │
+│      EVM↔PVM↔EVM loop     │  │  └── REST API (port 3001)        │
+└───────────────────────────┘  └──────────────────────────────────┘
 ```
 
-**Two VMs. Three layers. No bridge.** EVM contracts call Rust PVM contracts via pallet-revive cross-VM dispatch. PVM contracts relay votes to the Relay Chain via XCM.
+**Two VMs. Three layers. No bridge.** EVM contracts call Rust PVM contracts via pallet-revive cross-VM dispatch. PVM contracts relay votes to the Relay Chain via XCM. The CollectiveAggregator completes the first EVM→PVM→EVM loop — reading member identities from IdentityVault (EVM), computing weighted averages on RISC-V (PVM), and writing back to CollectiveRegistry (EVM).
 
 ---
 
@@ -128,6 +128,21 @@ struct ProposalAnalysis {
     bool exists;
     uint256 version;                  // Incremented on each re-analysis
 }
+
+// CollectiveRegistry.sol — On-chain voting collective with dynamic profile
+struct Collective {
+    bool exists;
+    string name;                  // e.g. "Sustainability Guardians"
+    string philosophy;            // Short philosophy statement
+    uint8[6] seedAxes;            // Founder's original 6-axis profile (immutable anchor)
+    uint8[6] axes;                // Current dynamic profile (shifts with members)
+    uint8 riskTolerance;          // 0-100: collective's risk appetite
+    uint256 memberCount;          // Current number of members
+    uint256 createdAt;
+}
+// Mappings: memberCollective[address] => collectiveId, isMember[address] => bool
+// seedWeight: 30 (30% founder, 70% member average)
+// Profile recalculation: on every join/leave, via PVM or Solidity fallback
 
 // GovMindCore.sol — Vote record stored per user per referendum
 struct VoteRecord {
@@ -344,6 +359,30 @@ Governance personalization engine on RISC-V. Called cross-VM from `GovMindCore.s
 //   Slot 2, byte 31: adjustedConfidence (uint8)
 ```
 
+### PVM Contract: CollectiveAggregator
+
+Dynamic profile recalculation on RISC-V. Called cross-VM from `CollectiveRegistry.sol`. Completes the first EVM→PVM→EVM loop on Polkadot Hub.
+
+```rust
+// Function selectors:
+SEL_JOIN:  [0x..] // recalculateOnJoin(uint8[6],uint8[6],uint8[6],uint32,uint8) → uint8[6]
+SEL_LEAVE: [0x..] // recalculateOnLeave(uint8[6],uint8[6],uint8[6],uint32,uint8) → uint8[6]
+
+// recalculate_on_join():
+//   Input: seedAxes[6], currentAxes[6], newMemberAxes[6], memberCount, seedWeight
+//   1. Reverse member average from current blended profile
+//   2. Incorporate new member's axes into the average
+//   3. Blend: effective[i] = seed[i] * seedWeight/100 + newAvg[i] * (100-seedWeight)/100
+//   4. Return ABI-encoded uint8[6] (6 × 32-byte slots)
+
+// recalculate_on_leave():
+//   Same flow but removes the leaving member from the average
+//   If last member leaves → returns seed axes (revert to founder's vision)
+
+// Output: 192 bytes (6 × 32-byte ABI slots)
+// Cross-VM flow: EVM CollectiveRegistry → PVM CollectiveAggregator → EVM IdentityVault
+```
+
 **Why Rust PVM?**
 - **Native SCALE encoding** — Substrate's codec written in the language it was designed for
 - **Deterministic integer math** — No Solidity overflow quirks for governance scoring
@@ -360,6 +399,7 @@ Governance personalization engine on RISC-V. Called cross-VM from `GovMindCore.s
 | `IdentityVault.sol` | ~300 | 6-axis governance identity storage, per-track AI delegation config, auto-vote eligibility checks (`canAutoVote`) |
 | `AIOracle.sol` | ~300 | AI analysis storage with IPFS references, re-analysis with version tracking, authorized oracle operators |
 | `XCMGovernanceRelay.sol` | ~400 | XCM V5 message construction, SCALE encoding (or PVM delegation), XCM precompile execution, weight/fee admin |
+| `CollectiveRegistry.sol` | ~350 | On-chain collective membership, dynamic 6-axis profile aggregation (seed 30% + member avg 70%), PVM cross-VM delegation, Solidity fallback |
 | `ScaleCodec.sol` | ~150 | Pure Solidity SCALE: compact u32/u64/u128, fixed-width u128 LE, Vec\<u8\> encoding |
 
 ### Key Function Interfaces
@@ -391,14 +431,24 @@ function previewEncodedCall(uint32 refIndex, bool aye, uint8 conviction, uint128
 function previewXcmMessage(uint32 refIndex, bool aye, uint8 conviction, uint128 amount) → bytes
 function setPVMCodec(address codec, bool enabled)                                 // Toggle cross-VM SCALE
 function setTransactWeight(uint64 refTime, uint64 proofSize)                      // Admin: XCM weight config
+
+// ─── CollectiveRegistry ───
+function joinCollective(uint8 collectiveId)                                       // On-chain join (auto-switches)
+function leaveCollective()                                                        // Leave current collective
+function getCollectiveAxes(uint8 collectiveId) → uint8[6]                         // Dynamic profile (shifts with members)
+function getSeedAxes(uint8 collectiveId) → uint8[6]                               // Founder's immutable anchor
+function getUserCollective(address user) → uint8                                  // 0 = not in any collective
+function getMemberCount(uint8 collectiveId) → uint256
+function setPVMAggregator(address aggregator, bool enabled)                       // Toggle cross-VM aggregation
 ```
 
 ### Deployment Scripts
 
 | Script | Purpose |
 |--------|---------|
-| `Deploy.s.sol` | Deploys all 5 EVM contracts to Polkadot Hub Testnet and wires dependencies |
-| `WirePVM.s.sol` | Wires deployed PVM contracts into EVM contracts — calls `setPVMCodec()` on XCMGovernanceRelay and `setPVMScorer()` on GovMindCore to enable cross-VM dispatch |
+| `Deploy.s.sol` | Deploys all 6 EVM contracts to Polkadot Hub Testnet, wires dependencies, seeds 4 collectives |
+| `DeployCollectives.s.sol` | Standalone CollectiveRegistry deployment with IdentityVault linkage and collective seeding |
+| `WirePVM.s.sol` | Wires deployed PVM contracts into EVM contracts — calls `setPVMCodec()` on XCMGovernanceRelay, `setPVMScorer()` on GovMindCore, and `setPVMAggregator()` on CollectiveRegistry |
 
 ---
 
@@ -453,18 +503,68 @@ canAutoVote(user, track, amount, confidence) → bool
   └─ confidence ≥ identity.minConfidenceThreshold?
 ```
 
-### AI Voting Collectives
+### AI Voting Collectives (On-Chain + Dynamic Profiles)
 
-Four governance tribes with distinct 6-axis profiles. Users join a collective and get per-proposal recommendations aligned with the collective's philosophy:
+Four governance tribes with distinct 6-axis profiles, stored and managed entirely on-chain via `CollectiveRegistry.sol`. Membership is an on-chain transaction — join/leave emits events, shifts the collective's profile, and is verifiable on Blockscout.
 
-| Collective | Axes [0-5] | Risk Tolerance | Philosophy |
-|------------|-----------|----------------|------------|
-| Sustainability | `[70,40,40,70,80,60]` | 35 | Conservative spending, community-first |
-| Innovation | `[20,90,90,10,50,80]` | 75 | Growth spending, tech-progressive |
-| Security | `[60,30,30,95,30,70]` | 20 | Ultra-conservative on tech changes |
+| Collective | Seed Axes [0-5] | Risk Tolerance | Philosophy |
+|------------|----------------|----------------|------------|
+| Sustainability Guardians | `[70,40,40,70,80,60]` | 35 | Conservative spending, community-first |
+| Innovation Accelerators | `[20,90,90,10,50,80]` | 75 | Growth spending, tech-progressive |
+| Security Maximalists | `[60,30,30,95,30,70]` | 20 | Ultra-conservative on tech changes |
 | Treasury Efficiency | `[95,10,50,60,40,50]` | 30 | Fiscal hawk, ROI-driven |
 
-**Recommendation computation:** Same `_computeAlignmentScore` algorithm, but using the collective's profile instead of the user's. Runs client-side (mirrors on-chain logic exactly). Backend tracks membership via `POST /api/collectives/join` with live member counts.
+**Dynamic profile aggregation:** Collective profiles are not static. When a member joins or leaves, the profile recalculates:
+
+```
+effective_axes[i] = seedAxes[i] * seedWeight/100 + memberAverage[i] * (100 - seedWeight)/100
+
+seedWeight = 30 (default)
+→ 30% founder's vision (immutable anchor — keeps the name meaningful)
+→ 70% member average (democratic influence — collective shifts with its members)
+```
+
+**On join:** Reverse the current member average from the blended profile, incorporate the new member's identity axes, re-blend. On leave: reverse out the departing member's axes and re-blend (or revert to seed if last member).
+
+**Cross-VM aggregation pipeline (EVM→PVM→EVM):**
+```
+CollectiveRegistry.joinCollective(id)        ← EVM: triggers recalculation
+    │
+    ├─ identityVault.getPreferenceWeights()  ← EVM: read member's 6-axis identity
+    │
+    └─ aggregatorPVM.recalculateOnJoin(      ← PVM: compute weighted average on RISC-V
+         seedAxes, currentAxes,
+         newMemberAxes, memberCount,
+         seedWeight
+       ) → uint8[6] newAxes
+    │
+    └─ c.axes = newAxes                      ← EVM: store updated profile on-chain
+        emit ProfileShifted(id, newAxes)
+```
+
+Three contracts, two VMs, one atomic transaction. The first EVM→PVM→EVM cross-VM loop on Polkadot Hub. Solidity fallback ensures the system works without PVM wired — admin toggles via `setPVMAggregator()`.
+
+**Recommendation computation:** Same `_computeAlignmentScore` algorithm, but using the collective's dynamic profile instead of the user's. Frontend reads `getCollectiveAxes()` on-chain and mirrors the scoring logic client-side.
+
+### Cross-Collective Consensus
+
+Every proposal page shows all four collectives' recommendations side-by-side:
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│  Cross-Collective Consensus                                  │
+│                                                              │
+│  Sustainability    ██████████░░░░  Nay (38% alignment)       │
+│  Innovation        ████████████░░  Aye (82% alignment)       │
+│  Security          ██████░░░░░░░░  Nay (25% alignment)       │
+│  Treasury Eff.     ████████░░░░░░  Nay (31% alignment)       │
+│                                                              │
+│  Consensus: Strong Nay (3/4 agree)                           │
+│  ████████████████████████████████░░░░░░░░░░  75% Nay         │
+└─────────────────────────────────────────────────────────────┘
+```
+
+Consensus labels: "Full Consensus: Aye/Nay" (4/4), "Strong Aye/Nay" (3/4), "Contentious" (2/2 split). When collectives with opposing philosophies (e.g., Innovation + Security) agree, that's a powerful governance signal.
 
 ### AI Governance Agent
 
@@ -472,7 +572,22 @@ Conversational chat on every proposal page. System prompt includes:
 - Full proposal metadata (title, track, status, tally, treasury request)
 - AI analysis (recommendation, risk factors, community sentiment, strengths/weaknesses)
 - User's 6-axis governance identity (personalizes advice to their values)
+- Personalized recommendation data (alignmentScore, adjustedConfidence, personalizedRec)
+- Full `_computeAlignmentScore` algorithm explanation so the AI can reason about *why* recommendations differ
 - Last 10 messages of conversation history
+
+**Identity vs Collective Conflict Detection:**
+
+The AI computes cosine similarity between the user's personal identity axes and their collective's profile axes. When similarity drops below 60%, the AI proactively flags the misalignment:
+
+```
+cosine_similarity(user_axes[6], collective_axes[6])
+  < 60%  →  CONFLICT: "Your identity diverges significantly from your collective"
+  60-80% →  MODERATE: Gentle note about specific divergent axes (diff ≥ 30 points)
+  > 80%  →  STRONG ALIGNMENT: Confirmation
+```
+
+Example: A user with high treasury-growth (90) joins Security Maximalists (treasury-growth: 30). The AI flags: "Your growth-oriented identity conflicts with Security Maximalists' conservative stance on spending. Consider whether Innovation Accelerators might better represent your values."
 
 ---
 
@@ -505,15 +620,15 @@ Node.js REST API on port 3001. No framework — uses native `http` module.
 | `GET` | `/api/proposal/:id` | Proposal metadata from Subsquare (title, track, tally, comments, spending). |
 | `POST` | `/api/chat/:id` | AI agent chat for a specific proposal. Accepts `{ message, history[], userIdentity }`. |
 | `POST` | `/api/chat/delegation` | AI delegation advisor chat. Accepts `{ message, history[], userIdentity, delegates[] }`. |
-| `GET` | `/api/collectives` | Live member counts per collective: `{ counts: { "innovation": 3, ... }, total: 7 }`. |
-| `POST` | `/api/collectives/join` | Join a collective: `{ collectiveId, address }`. Returns updated counts. |
-| `POST` | `/api/collectives/leave` | Leave a collective: `{ address }`. Returns updated counts. |
-| `GET` | `/api/collectives/membership/:addr` | Get user's current collective membership. |
+| `GET` | `/api/collectives` | Live member counts (supplementary — primary membership is on-chain via CollectiveRegistry). |
+| `POST` | `/api/collectives/join` | Backend sync for collective join (primary: on-chain `joinCollective()` tx). |
+| `POST` | `/api/collectives/leave` | Backend sync for collective leave (primary: on-chain `leaveCollective()` tx). |
+| `GET` | `/api/collectives/membership/:addr` | Get user's collective membership (reads from both backend cache and on-chain). |
 | `GET` | `/api/health` | Health check: analysis count, proposal count, in-progress analyses, uptime. |
 
 ---
 
-## Deployed Contracts (Polkadot Hub Testnet v4)
+## Deployed Contracts (Polkadot Hub Testnet v5)
 
 ### EVM Contracts
 
@@ -523,6 +638,7 @@ Node.js REST API on port 3001. No framework — uses native `http` module.
 | AIOracle | [`0xB9364a7Be7be4598BBb4edb812aFbe25a85ebB2A`](https://blockscout-testnet.polkadot.io/address/0xB9364a7Be7be4598BBb4edb812aFbe25a85ebB2A) |
 | GovMindCore | [`0x9738ceE50C7ce9E45d32a27D43886D61EF7D3f6a`](https://blockscout-testnet.polkadot.io/address/0x9738ceE50C7ce9E45d32a27D43886D61EF7D3f6a) |
 | XCMGovernanceRelay | [`0xFf63bF7E3e0eB21BFB552B6e32de08a98Ad01faF`](https://blockscout-testnet.polkadot.io/address/0xFf63bF7E3e0eB21BFB552B6e32de08a98Ad01faF) |
+| CollectiveRegistry | [`0x8415f90D44dAb2943836C07F1bb6f21A70174649`](https://blockscout-testnet.polkadot.io/address/0x8415f90D44dAb2943836C07F1bb6f21A70174649) |
 
 ### PVM Contracts (Rust → RISC-V)
 
@@ -530,6 +646,7 @@ Node.js REST API on port 3001. No framework — uses native `http` module.
 |----------|---------|-------------|
 | ScaleCodecPVM | [`0x9c0E4B07f26726d6646C8465cfA39f9662550cDb`](https://blockscout-testnet.polkadot.io/address/0x9c0E4B07f26726d6646C8465cfA39f9662550cDb) | 1,523 bytes |
 | AlignmentScorer | [`0x60B9D9D2097963ADf51Cf6c1E1b80309c2959238`](https://blockscout-testnet.polkadot.io/address/0x60B9D9D2097963ADf51Cf6c1E1b80309c2959238) | 690 bytes |
+| CollectiveAggregator | *Pending deployment* | ~800 bytes (est.) |
 
 **Network:** Polkadot Hub Testnet | **Chain ID:** `420420417` | **RPC:** `https://eth-rpc-testnet.polkadot.io/`
 
@@ -551,7 +668,7 @@ forge script script/Deploy.s.sol --rpc-url https://services.polkadothub-rpc.com/
 # PVM Smart Contracts (Track 2)
 # Requires: rustup with nightly-2024-11-19, polkatool
 cd pvm-contracts
-./build.sh                     # Builds ScaleCodecPVM (1,523 bytes) + AlignmentScorer (690 bytes)
+./build.sh                     # Builds ScaleCodecPVM + AlignmentScorer + CollectiveAggregator
 node deploy.cjs                # Deploys PVM binaries to Polkadot Hub Testnet
 
 # Wire PVM contracts into EVM contracts (enables cross-VM dispatch)
@@ -624,14 +741,15 @@ forge test --match-test testFuzz -vvv              # Fuzz tests only (256 runs e
 ## Roadmap
 
 ### Current State (Hackathon)
-- 5 EVM contracts (Solidity) deployed on Polkadot Hub Testnet
-- 2 PVM contracts (Rust → RISC-V) with cross-VM integration into EVM contracts
+- 6 EVM contracts (Solidity) deployed on Polkadot Hub Testnet — including CollectiveRegistry with dynamic profiles
+- 3 PVM contracts (Rust → RISC-V) with cross-VM integration — ScaleCodecPVM, AlignmentScorer, CollectiveAggregator
+- First EVM→PVM→EVM cross-VM loop on Polkadot Hub (CollectiveRegistry → CollectiveAggregator → IdentityVault)
 - AI analysis pipeline with deep proposal intelligence from Subsquare + GPT-4o-mini
 - 6-axis personalized governance identity with on-chain alignment scoring
 - XCM V5 cross-chain vote relay (proof-of-concept via Hub sovereign account)
-- AI Voting Collectives — governance tribes with shared philosophies, live membership tracking, and per-proposal recommendations
-- Conversational AI governance agent with context-aware proposal chat
-- Proposal content rendering with markdown from Subsquare
+- On-chain Voting Collectives with dynamic profiles (30% seed + 70% member influence), cross-collective consensus panel
+- Conversational AI governance agent with identity-vs-collective conflict detection (cosine similarity)
+- Cross-collective consensus: 4 collectives' recommendations side-by-side per proposal
 - Backend REST API with 11 endpoints (analysis, chat, collectives, health)
 - 79 tests including 7 fuzz tests (256 runs each)
 - Dual-track submission: Track 1 (EVM) + Track 2 (PVM)

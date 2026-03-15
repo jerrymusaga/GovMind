@@ -1,5 +1,5 @@
 #!/bin/bash
-# Build both Rust PVM contracts for GovMind
+# Build all Rust PVM contracts for GovMind
 # Requires: nightly-2024-11-19 toolchain + rust-src + polkatool
 
 set -e
@@ -11,7 +11,7 @@ echo "========================================================="
 
 # Build SCALE Codec
 echo ""
-echo "[1/2] Building SCALE Codec PVM contract..."
+echo "[1/3] Building SCALE Codec PVM contract..."
 cd "$SCRIPT_DIR/scale-codec"
 cargo +nightly-2024-11-19 build --release 2>&1
 polkatool link --run-only-if-newer \
@@ -22,7 +22,7 @@ echo "      scale-codec.polkavm: ${SIZE} bytes"
 
 # Build Alignment Scorer
 echo ""
-echo "[2/2] Building Alignment Scorer PVM contract..."
+echo "[2/3] Building Alignment Scorer PVM contract..."
 cd "$SCRIPT_DIR/alignment-scorer"
 cargo +nightly-2024-11-19 build --release 2>&1
 polkatool link --run-only-if-newer \
@@ -31,9 +31,21 @@ polkatool link --run-only-if-newer \
 SIZE=$(wc -c < alignment-scorer.polkavm | tr -d ' ')
 echo "      alignment-scorer.polkavm: ${SIZE} bytes"
 
+# Build Collective Aggregator
 echo ""
-echo "Done. Both PVM contracts compiled to RISC-V."
+echo "[3/3] Building Collective Aggregator PVM contract..."
+cd "$SCRIPT_DIR/collective-aggregator"
+cargo +nightly-2024-11-19 build --release 2>&1
+polkatool link --run-only-if-newer \
+  -s target/riscv64emac-unknown-none-polkavm/release/collective-aggregator \
+  -o collective-aggregator.polkavm
+SIZE=$(wc -c < collective-aggregator.polkavm | tr -d ' ')
+echo "      collective-aggregator.polkavm: ${SIZE} bytes"
+
+echo ""
+echo "Done. All PVM contracts compiled to RISC-V."
 echo ""
 echo "Binaries:"
 echo "  pvm-contracts/scale-codec/scale-codec.polkavm"
 echo "  pvm-contracts/alignment-scorer/alignment-scorer.polkavm"
+echo "  pvm-contracts/collective-aggregator/collective-aggregator.polkavm"

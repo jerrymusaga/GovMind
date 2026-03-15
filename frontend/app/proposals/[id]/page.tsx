@@ -1296,6 +1296,103 @@ function CollectiveRecommendationCard({
   );
 }
 
+// ─── Cross-Collective Consensus ───
+
+function CrossCollectiveConsensus({
+  categoryId,
+  riskScore,
+  baseRec,
+  baseConf,
+}: {
+  categoryId: number;
+  riskScore: number;
+  baseRec: number;
+  baseConf: number;
+}) {
+  const results = COLLECTIVES.map((c) => {
+    const { recommendation, confidence, alignment } = computeCollectiveRecommendation(
+      c, categoryId, riskScore, baseRec, baseConf
+    );
+    return { collective: c, recommendation, confidence, alignment };
+  });
+
+  const ayeCount = results.filter((r) => r.recommendation === 1).length;
+  const nayCount = results.filter((r) => r.recommendation === -1).length;
+  const abstainCount = results.filter((r) => r.recommendation === 0).length;
+
+  const consensusLabel =
+    ayeCount === 4 ? "Full Consensus: Aye" :
+    nayCount === 4 ? "Full Consensus: Nay" :
+    ayeCount >= 3 ? "Strong Aye" :
+    nayCount >= 3 ? "Strong Nay" :
+    "Contentious";
+  const consensusColor =
+    ayeCount >= 3 ? "text-emerald-400" :
+    nayCount >= 3 ? "text-red-400" :
+    "text-amber-400";
+
+  return (
+    <div className="glass-card p-5">
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-2">
+          <Users className="w-4 h-4 text-polkadot-purple" />
+          <h3 className="text-xs font-semibold text-white">
+            Cross-Collective Consensus
+          </h3>
+        </div>
+        <div className={clsx("text-xs font-bold", consensusColor)}>
+          {consensusLabel}
+        </div>
+      </div>
+
+      {/* Consensus bar */}
+      <div className="flex gap-0.5 mb-4 h-2 rounded-full overflow-hidden">
+        {ayeCount > 0 && (
+          <div className="bg-emerald-500" style={{ width: `${(ayeCount / 4) * 100}%` }} />
+        )}
+        {abstainCount > 0 && (
+          <div className="bg-amber-500" style={{ width: `${(abstainCount / 4) * 100}%` }} />
+        )}
+        {nayCount > 0 && (
+          <div className="bg-red-500" style={{ width: `${(nayCount / 4) * 100}%` }} />
+        )}
+      </div>
+
+      {/* Individual collective votes */}
+      <div className="grid grid-cols-2 gap-2">
+        {results.map(({ collective, recommendation, confidence }) => {
+          const Icon = COLLECTIVE_ICONS[collective.icon] || Shield;
+          const recLabel = recommendation === 1 ? "Aye" : recommendation === -1 ? "Nay" : "Abstain";
+          const dotColor = recommendation === 1 ? "bg-emerald-400" : recommendation === -1 ? "bg-red-400" : "bg-amber-400";
+
+          return (
+            <div
+              key={collective.id}
+              className="flex items-center gap-2 p-2 rounded-lg bg-surface-2/30 border border-white/5"
+            >
+              <div className={clsx("w-6 h-6 rounded-md flex items-center justify-center", collective.bgColor)}>
+                <Icon className={clsx("w-3 h-3", collective.color)} />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-[10px] text-gray-400 truncate">{collective.name.replace(" Collective", "")}</p>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <span className={clsx("w-2 h-2 rounded-full", dotColor)} />
+                <span className="text-[10px] font-bold text-gray-300">{recLabel}</span>
+                <span className="text-[9px] text-gray-500">{confidence}%</span>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      <p className="text-[9px] text-gray-600 mt-3 text-center">
+        Same proposal, 4 different governance philosophies, {ayeCount === 4 || nayCount === 4 ? "unanimous" : "different"} answers
+      </p>
+    </div>
+  );
+}
+
 // ─── Main Page ───
 
 export default function ProposalDetailPage() {
@@ -1352,6 +1449,11 @@ export default function ProposalDetailPage() {
     ? {
         axes: (prefWeights as readonly number[]).map(Number),
         riskTolerance: Number((identityData as any)[1]),
+        ...(insight ? {
+          personalizedRec: Number((insight as any)[0]),
+          adjustedConfidence: Number((insight as any)[1]),
+          alignmentScore: Number((insight as any)[3]),
+        } : {}),
       }
     : null;
 
@@ -1911,14 +2013,22 @@ export default function ProposalDetailPage() {
             </div>
           )}
 
-          {/* ── Collective Recommendation ── */}
+          {/* ── Collective Recommendations ── */}
           {hasOnChain && (
-            <CollectiveRecommendationCard
-              categoryId={categoryId}
-              riskScore={riskScore}
-              baseRec={baseRec}
-              baseConf={baseConf}
-            />
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <CollectiveRecommendationCard
+                categoryId={categoryId}
+                riskScore={riskScore}
+                baseRec={baseRec}
+                baseConf={baseConf}
+              />
+              <CrossCollectiveConsensus
+                categoryId={categoryId}
+                riskScore={riskScore}
+                baseRec={baseRec}
+                baseConf={baseConf}
+              />
+            </div>
           )}
 
           {/* ── Row 4: Vote + GovMind Stats ── */}
