@@ -346,6 +346,7 @@ function ContractsSection() {
     { name: "XCMRelay", addr: ADDRESSES.xcmRelay, type: "EVM" },
     { name: "ScaleCodecPVM", addr: ADDRESSES.scaleCodecPVM, type: "PVM" },
     { name: "AlignmentScorerPVM", addr: ADDRESSES.alignmentScorerPVM, type: "PVM" },
+    { name: "CollectiveRegistry", addr: ADDRESSES.collectiveRegistry, type: "EVM" },
   ];
 
   return (

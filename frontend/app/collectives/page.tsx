@@ -1,11 +1,12 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
-import { useAccount, useReadContract } from "wagmi";
+import { useAccount, useReadContract, useReadContracts, useWriteContract, useWaitForTransactionReceipt } from "wagmi";
 import { ConnectButton } from "@rainbow-me/rainbowkit";
 import {
   ADDRESSES,
   IDENTITY_VAULT_ABI,
+  COLLECTIVE_REGISTRY_ABI,
   PREFERENCE_AXES,
   COLLECTIVES,
   Collective,
@@ -30,6 +31,7 @@ import {
   UserPlus,
   LogOut,
   Crown,
+  Loader2,
 } from "lucide-react";
 import Link from "next/link";
 import clsx from "clsx";
@@ -44,6 +46,22 @@ const COLLECTIVE_ICONS: Record<string, typeof Shield> = {
 };
 
 const AXIS_ICONS = [Shield, TrendingUp, Zap, Lock, Users, Server];
+
+// ─── Map on-chain collective IDs (1-4) to frontend IDs ───
+
+const ONCHAIN_ID_MAP: Record<number, string> = {
+  1: "sustainability",
+  2: "innovation",
+  3: "security",
+  4: "treasury",
+};
+
+const FRONTEND_ID_MAP: Record<string, number> = {
+  sustainability: 1,
+  innovation: 2,
+  security: 3,
+  treasury: 4,
+};
 
 // ─── Alignment Scoring (mirrors AlignmentScorer PVM) ───
 
@@ -67,12 +85,14 @@ function CollectiveCard({
   isJoined,
   onJoin,
   onLeave,
+  isPending,
 }: {
   collective: Collective;
   userWeights: number[] | null;
   isJoined: boolean;
   onJoin: (id: string) => void;
   onLeave: () => void;
+  isPending: boolean;
 }) {
   const Icon = COLLECTIVE_ICONS[collective.icon] || Shield;
   const alignment = userWeights
@@ -104,7 +124,7 @@ function CollectiveCard({
               {collective.name}
             </h3>
             <p className="text-[11px] text-gray-500">
-              {collective.memberCount || 0} {collective.memberCount === 1 ? "member" : "members"}
+              {collective.memberCount || 0} {collective.memberCount === 1 ? "member" : "members"} · on-chain
             </p>
           </div>
         </div>
@@ -221,23 +241,25 @@ function CollectiveCard({
       {isJoined ? (
         <button
           onClick={onLeave}
-          className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-xs font-medium bg-surface-2 border border-white/10 text-gray-400 hover:text-red-400 hover:border-red-500/20 transition-all"
+          disabled={isPending}
+          className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-xs font-medium bg-surface-2 border border-white/10 text-gray-400 hover:text-red-400 hover:border-red-500/20 transition-all disabled:opacity-50"
         >
-          <LogOut className="w-3.5 h-3.5" />
-          Leave Collective
+          {isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <LogOut className="w-3.5 h-3.5" />}
+          {isPending ? "Leaving..." : "Leave Collective"}
         </button>
       ) : (
         <button
           onClick={() => onJoin(collective.id)}
+          disabled={isPending}
           className={clsx(
-            "w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-xs font-medium border transition-all hover:scale-[1.02]",
+            "w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-xs font-medium border transition-all hover:scale-[1.02] disabled:opacity-50",
             collective.bgColor,
             collective.borderColor,
             collective.color
           )}
         >
-          <UserPlus className="w-3.5 h-3.5" />
-          Join Collective
+          {isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <UserPlus className="w-3.5 h-3.5" />}
+          {isPending ? "Joining..." : "Join Collective"}
         </button>
       )}
     </div>
@@ -246,104 +268,86 @@ function CollectiveCard({
 
 // ─── Collectives Page ───
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
-
 export default function CollectivesPage() {
   const { address, isConnected } = useAccount();
-  const [joinedCollective, setJoinedCollective] = useState<string | null>(null);
-  const [memberCounts, setMemberCounts] = useState<Record<string, number>>({});
 
-  // Fetch member counts from backend
-  const fetchCounts = async () => {
-    try {
-      const res = await fetch(`${API_BASE}/api/collectives`);
-      if (res.ok) {
-        const data = await res.json();
-        setMemberCounts(data.counts || {});
-      }
-    } catch {}
-  };
+  // ─── On-chain reads: user's collective membership ───
+  const { data: userCollectiveId, refetch: refetchMembership } = useReadContract({
+    address: ADDRESSES.collectiveRegistry,
+    abi: COLLECTIVE_REGISTRY_ABI,
+    functionName: "getUserCollective",
+    args: address ? [address] : undefined,
+    query: { enabled: isConnected && !!address },
+  });
 
-  // Load membership from backend (with localStorage fallback)
+  // ─── On-chain reads: member counts for all 4 collectives ───
+  const { data: memberCountsRaw, refetch: refetchCounts } = useReadContracts({
+    contracts: [1, 2, 3, 4].map((id) => ({
+      address: ADDRESSES.collectiveRegistry,
+      abi: COLLECTIVE_REGISTRY_ABI,
+      functionName: "getMemberCount",
+      args: [id],
+    })),
+    query: { enabled: true },
+  });
+
+  // ─── On-chain writes ───
+  const { writeContract, data: txHash, isPending: writePending } = useWriteContract();
+  const { isSuccess: txConfirmed } = useWaitForTransactionReceipt({ hash: txHash });
+
+  // Refetch after tx confirms
   useEffect(() => {
-    fetchCounts();
-
-    if (!address) {
-      // Fall back to localStorage when not connected
-      const stored = localStorage.getItem("govmind_collective");
-      if (stored) {
-        try {
-          const { collectiveId } = JSON.parse(stored);
-          setJoinedCollective(collectiveId);
-        } catch {}
-      }
-      return;
+    if (txConfirmed) {
+      refetchMembership();
+      refetchCounts();
     }
+  }, [txConfirmed]);
 
-    // Fetch membership from backend
-    (async () => {
-      try {
-        const res = await fetch(`${API_BASE}/api/collectives/membership/${address}`);
-        if (res.ok) {
-          const data = await res.json();
-          if (data.membership) {
-            setJoinedCollective(data.membership.collectiveId);
-            localStorage.setItem(
-              "govmind_collective",
-              JSON.stringify(data.membership)
-            );
-          } else {
-            // Backend says not joined — clear localStorage too
-            setJoinedCollective(null);
-            localStorage.removeItem("govmind_collective");
-          }
-          return;
-        }
-      } catch {}
-      // Backend unreachable — fall back to localStorage
-      const stored = localStorage.getItem("govmind_collective");
-      if (stored) {
-        try {
-          const { collectiveId } = JSON.parse(stored);
-          setJoinedCollective(collectiveId);
-        } catch {}
-      }
-    })();
-  }, [address]);
+  // Derive joined collective from on-chain data
+  const joinedCollective = userCollectiveId && Number(userCollectiveId) > 0
+    ? ONCHAIN_ID_MAP[Number(userCollectiveId)] || null
+    : null;
 
-  const handleJoin = async (id: string) => {
-    setJoinedCollective(id);
-    localStorage.setItem(
-      "govmind_collective",
-      JSON.stringify({ collectiveId: id, joinedAt: Date.now() })
-    );
-    try {
-      const res = await fetch(`${API_BASE}/api/collectives/join`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ collectiveId: id, address }),
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setMemberCounts(data.counts || {});
+  // Also sync to localStorage for the proposal detail page
+  useEffect(() => {
+    if (joinedCollective) {
+      localStorage.setItem(
+        "govmind_collective",
+        JSON.stringify({ collectiveId: joinedCollective, joinedAt: Date.now() })
+      );
+    } else if (userCollectiveId !== undefined) {
+      localStorage.removeItem("govmind_collective");
+    }
+  }, [joinedCollective, userCollectiveId]);
+
+  // Build member counts from on-chain data
+  const memberCounts: Record<string, number> = {};
+  if (memberCountsRaw) {
+    [1, 2, 3, 4].forEach((id, i) => {
+      const result = memberCountsRaw[i];
+      if (result && result.status === "success") {
+        memberCounts[ONCHAIN_ID_MAP[id]] = Number(result.result);
       }
-    } catch {}
+    });
+  }
+
+  const handleJoin = (id: string) => {
+    const onchainId = FRONTEND_ID_MAP[id];
+    if (!onchainId) return;
+    writeContract({
+      address: ADDRESSES.collectiveRegistry,
+      abi: COLLECTIVE_REGISTRY_ABI,
+      functionName: "joinCollective",
+      args: [onchainId],
+    });
   };
 
-  const handleLeave = async () => {
-    setJoinedCollective(null);
-    localStorage.removeItem("govmind_collective");
-    try {
-      const res = await fetch(`${API_BASE}/api/collectives/leave`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ address }),
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setMemberCounts(data.counts || {});
-      }
-    } catch {}
+  const handleLeave = () => {
+    writeContract({
+      address: ADDRESSES.collectiveRegistry,
+      abi: COLLECTIVE_REGISTRY_ABI,
+      functionName: "leaveCollective",
+    });
   };
 
   // Read user identity
@@ -379,7 +383,7 @@ export default function CollectivesPage() {
       const alignB = computeAlignment(userWeights, b.axes);
       return alignB - alignA;
     });
-  }, [userWeights]);
+  }, [userWeights, memberCounts]);
 
   const activeCollective = COLLECTIVES.find((c) => c.id === joinedCollective);
 
@@ -413,7 +417,7 @@ export default function CollectivesPage() {
               AI Voting Collectives
             </h1>
             <p className="text-sm text-gray-400">
-              Join a governance tribe aligned with your values &mdash; vote with one click
+              Join a governance tribe aligned with your values &mdash; membership is recorded on-chain
             </p>
           </div>
         </div>
@@ -498,6 +502,10 @@ export default function CollectivesPage() {
             Choose a Collective
           </span>
           <ArrowRight className="w-3 h-3 text-gray-600" />
+          <span className="px-2 py-1 rounded-lg bg-polkadot-pink/10 border border-polkadot-pink/20 text-polkadot-pink">
+            Join On-Chain (tx)
+          </span>
+          <ArrowRight className="w-3 h-3 text-gray-600" />
           <span className="px-2 py-1 rounded-lg bg-cyan-500/10 border border-cyan-500/20 text-cyan-400">
             AI Analyzes Proposals
           </span>
@@ -506,11 +514,37 @@ export default function CollectivesPage() {
             Collective Recommendation
           </span>
           <ArrowRight className="w-3 h-3 text-gray-600" />
-          <span className="px-2 py-1 rounded-lg bg-polkadot-pink/10 border border-polkadot-pink/20 text-polkadot-pink">
+          <span className="px-2 py-1 rounded-lg bg-polkadot-purple/10 border border-polkadot-purple/20 text-polkadot-purple">
             One-Click Vote via XCM
           </span>
         </div>
       </div>
+
+      {/* Tx confirmation banner */}
+      {writePending && (
+        <div className="mb-4 p-3 rounded-xl bg-polkadot-pink/10 border border-polkadot-pink/20 flex items-center gap-3">
+          <Loader2 className="w-4 h-4 text-polkadot-pink animate-spin" />
+          <p className="text-xs text-polkadot-pink">
+            Confirm the transaction in your wallet to update your collective membership on-chain...
+          </p>
+        </div>
+      )}
+      {txHash && !txConfirmed && !writePending && (
+        <div className="mb-4 p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center gap-3">
+          <Loader2 className="w-4 h-4 text-amber-400 animate-spin" />
+          <p className="text-xs text-amber-400">
+            Transaction submitted — waiting for confirmation...
+          </p>
+        </div>
+      )}
+      {txConfirmed && (
+        <div className="mb-4 p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center gap-3">
+          <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+          <p className="text-xs text-emerald-400">
+            Membership updated on-chain!
+          </p>
+        </div>
+      )}
 
       {/* Main content */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -524,6 +558,7 @@ export default function CollectivesPage() {
               isJoined={joinedCollective === collective.id}
               onJoin={handleJoin}
               onLeave={handleLeave}
+              isPending={writePending}
             />
           ))}
         </div>
@@ -584,8 +619,8 @@ export default function CollectivesPage() {
               <p>
                 Each collective has a{" "}
                 <strong className="text-cyan-400">6-axis governance profile</strong>{" "}
-                that the AI uses to generate recommendations. When you join a
-                collective, proposals are scored against its values.
+                stored on-chain in the CollectiveRegistry contract. When you join,
+                your membership is recorded on-chain via a transaction.
               </p>
               <p>
                 Your tokens stay in your wallet. You still decide whether to

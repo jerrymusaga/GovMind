@@ -1,4 +1,11 @@
 {
+  "/_not-found/page": "app/_not-found/page.js",
+  "/api/referenda/[id]/route": "app/api/referenda/[id]/route.js",
+  "/collectives/page": "app/collectives/page.js",
+  "/identity/page": "app/identity/page.js",
+  "/api/referenda/route": "app/api/referenda/route.js",
+  "/page": "app/page.js",
+  "/proposals/page": "app/proposals/page.js",
   "/proposals/[id]/page": "app/proposals/[id]/page.js",
-  "/proposals/page": "app/proposals/page.js"
+  "/delegation/page": "app/delegation/page.js"
 }

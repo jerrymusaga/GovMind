@@ -20,6 +20,7 @@ export const ADDRESSES = {
   xcmRelay: "0xFf63bF7E3e0eB21BFB552B6e32de08a98Ad01faF" as `0x${string}`,
   scaleCodecPVM: "0x9c0E4B07f26726d6646C8465cfA39f9662550cDb" as `0x${string}`,
   alignmentScorerPVM: "0x60B9D9D2097963ADf51Cf6c1E1b80309c2959238" as `0x${string}`,
+  collectiveRegistry: "0xf8127fC25A08FBf4899e10040C249058B7C1116C" as `0x${string}`,
 };
 
 export const IDENTITY_VAULT_ABI = [
@@ -487,6 +488,80 @@ export const PVM_STATUS_ABI = [
     stateMutability: "view",
     inputs: [],
     outputs: [{ name: "", type: "address" }],
+  },
+] as const;
+
+export const COLLECTIVE_REGISTRY_ABI = [
+  {
+    name: "joinCollective",
+    type: "function",
+    stateMutability: "nonpayable",
+    inputs: [{ name: "_collectiveId", type: "uint8" }],
+    outputs: [],
+  },
+  {
+    name: "leaveCollective",
+    type: "function",
+    stateMutability: "nonpayable",
+    inputs: [],
+    outputs: [],
+  },
+  {
+    name: "collectives",
+    type: "function",
+    stateMutability: "view",
+    inputs: [{ name: "", type: "uint8" }],
+    outputs: [
+      { name: "exists", type: "bool" },
+      { name: "name", type: "string" },
+      { name: "philosophy", type: "string" },
+      { name: "axes", type: "uint8[6]" },
+      { name: "riskTolerance", type: "uint8" },
+      { name: "memberCount", type: "uint256" },
+      { name: "createdAt", type: "uint256" },
+    ],
+  },
+  {
+    name: "getUserCollective",
+    type: "function",
+    stateMutability: "view",
+    inputs: [{ name: "_user", type: "address" }],
+    outputs: [{ name: "", type: "uint8" }],
+  },
+  {
+    name: "getCollectiveAxes",
+    type: "function",
+    stateMutability: "view",
+    inputs: [{ name: "_collectiveId", type: "uint8" }],
+    outputs: [{ name: "", type: "uint8[6]" }],
+  },
+  {
+    name: "getMemberCount",
+    type: "function",
+    stateMutability: "view",
+    inputs: [{ name: "_collectiveId", type: "uint8" }],
+    outputs: [{ name: "", type: "uint256" }],
+  },
+  {
+    name: "collectiveCount",
+    type: "function",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ name: "", type: "uint8" }],
+  },
+  {
+    name: "totalMembers",
+    type: "function",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ name: "", type: "uint256" }],
+  },
+  {
+    name: "isMember",
+    type: "function",
+    stateMutability: "view",
+    inputs: [{ name: "", type: "address" }],
+    outputs: [{ name: "", type: "bool" }],
   },
 ] as const;
 

@@ -6,6 +6,7 @@ import "../src/IdentityVault.sol";
 import "../src/AIOracle.sol";
 import "../src/GovMindCore.sol";
 import "../src/XCMGovernanceRelay.sol";
+import "../src/CollectiveRegistry.sol";
 
 contract DeployGovMind is Script {
     function run() external {
@@ -54,6 +55,47 @@ contract DeployGovMind is Script {
         govMindCore.setPVMScorer(alignmentScorerPVM, true);
         console.log("PVM AlignmentScorer wired to GovMindCore");
 
+        // 8. Deploy CollectiveRegistry and seed collectives
+        CollectiveRegistry collectiveRegistry = new CollectiveRegistry();
+        console.log("CollectiveRegistry deployed to:", address(collectiveRegistry));
+
+        // Seed: Sustainability Guardians
+        collectiveRegistry.createCollective(
+            1,
+            "Sustainability Guardians",
+            "Protect the treasury, fund proven teams, minimize risk",
+            [uint8(70), 40, 40, 70, 80, 60],
+            35
+        );
+
+        // Seed: Innovation Accelerators
+        collectiveRegistry.createCollective(
+            2,
+            "Innovation Accelerators",
+            "Fund bold experiments, embrace technical change, grow fast",
+            [uint8(20), 90, 90, 10, 50, 80],
+            75
+        );
+
+        // Seed: Security Maximalists
+        collectiveRegistry.createCollective(
+            3,
+            "Security Maximalists",
+            "Stability above all, rigorous review, conservative upgrades",
+            [uint8(60), 30, 30, 95, 30, 70],
+            20
+        );
+
+        // Seed: Treasury Efficiency
+        collectiveRegistry.createCollective(
+            4,
+            "Treasury Efficiency",
+            "Every DOT must have measurable ROI, cut waste ruthlessly",
+            [uint8(95), 10, 50, 60, 40, 50],
+            30
+        );
+        console.log("4 collectives seeded on-chain");
+
         vm.stopBroadcast();
 
         console.log("\n========================================");
@@ -66,6 +108,7 @@ contract DeployGovMind is Script {
         console.log("  XCMGovernanceRelay:  ", address(xcmRelay));
         console.log("  ScaleCodecPVM:       ", scaleCodecPVM);
         console.log("  AlignmentScorerPVM:  ", alignmentScorerPVM);
+        console.log("  CollectiveRegistry:  ", address(collectiveRegistry));
         console.log("========================================");
     }
 }
