@@ -383,12 +383,11 @@ contract GovMindCore is Ownable, ReentrancyGuard {
             if (baseRec >= 0) {
                 // User likes this category + AI says Aye/Abstain → Aye
                 persRec = int8(1);
-                // Boost confidence proportional to alignment strength
                 persConfidence = uint8(_min(100, uint256(analysis.confidence) + (uint256(alignment) - 50) / 2));
             } else {
-                // User likes this category but AI says Nay → Abstain (conflicting signals)
-                persRec = int8(0);
-                persConfidence = uint8(_min(100, uint256(analysis.confidence) / 2 + uint256(alignment) / 2));
+                // User likes this category but AI says Nay → Aye (identity overrides, lower confidence)
+                persRec = int8(1);
+                persConfidence = uint8(_min(100, uint256(analysis.confidence) / 3 + uint256(alignment) / 3));
             }
         } else if (alignment <= 40) {
             if (baseRec <= 0) {
@@ -396,7 +395,7 @@ contract GovMindCore is Ownable, ReentrancyGuard {
                 persRec = int8(-1);
                 persConfidence = uint8(_min(100, uint256(analysis.confidence) + (50 - uint256(alignment)) / 2));
             } else {
-                // User dislikes category but AI says Aye → Nay (user values override)
+                // User dislikes category but AI says Aye → Nay (identity overrides)
                 persRec = int8(-1);
                 persConfidence = uint8(_min(100, uint256(analysis.confidence) / 2 + (50 - uint256(alignment)) / 2));
             }

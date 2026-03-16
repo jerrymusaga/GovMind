@@ -16,7 +16,7 @@ export const POLKADOT_HUB_TESTNET = {
 export const ADDRESSES = {
   identityVault: "0xCC6d8B7896E451cD3c3a34adA0dE55885519aDA1" as `0x${string}`,
   aiOracle: "0xB9364a7Be7be4598BBb4edb812aFbe25a85ebB2A" as `0x${string}`,
-  govMindCore: "0x9738ceE50C7ce9E45d32a27D43886D61EF7D3f6a" as `0x${string}`,
+  govMindCore: "0x4c136Fdf9524cfa5cbA7B23444B1E45CA7938781" as `0x${string}`,
   xcmRelay: "0x83d49Ec8d914cBf43b22e253b03abDe151931aec" as `0x${string}`,
   scaleCodecPVM: "0x9c0E4B07f26726d6646C8465cfA39f9662550cDb" as `0x${string}`,
   alignmentScorerPVM: "0x60B9D9D2097963ADf51Cf6c1E1b80309c2959238" as `0x${string}`,
