@@ -135,6 +135,9 @@ contract XCMGovernanceRelay is Ownable {
         relayEnabled = true;
     }
 
+    /// @notice Accept DOT deposits to fund XCM fee payments
+    receive() external payable {}
+
     // ============================================================
     //                    CORE: XCM VOTE RELAY
     // ============================================================

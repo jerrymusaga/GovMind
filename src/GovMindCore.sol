@@ -491,7 +491,7 @@ contract GovMindCore is Ownable, ReentrancyGuard {
 
     /// @notice Set the XCM Governance Relay contract
     function setXCMRelay(address _relay) external onlyOwner {
-        xcmRelay = XCMGovernanceRelay(_relay);
+        xcmRelay = XCMGovernanceRelay(payable(_relay));
         emit XCMRelayUpdated(_relay);
     }
 
