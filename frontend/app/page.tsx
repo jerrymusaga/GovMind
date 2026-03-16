@@ -161,7 +161,13 @@ function ArchitectureSection() {
 
   const { data: pvmAggregatorEnabled } = useReadContract({
     address: ADDRESSES.collectiveRegistry,
-    abi: PVM_STATUS_ABI,
+    abi: [{
+      name: "usePVMAggregator",
+      type: "function",
+      stateMutability: "view",
+      inputs: [],
+      outputs: [{ name: "", type: "bool" }],
+    }] as const,
     functionName: "usePVMAggregator",
   });
 
