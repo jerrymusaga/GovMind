@@ -204,7 +204,7 @@ function ArchitectureSection() {
           { label: "AI Analyses", value: analysisCount ? Number(analysisCount) : 0, color: "text-polkadot-pink" },
           { label: "XCM Relayed", value: totalRelayed ? Number(totalRelayed) : 0, color: "text-polkadot-purple" },
           { label: "Relay Status", value: relayEnabled ? "Live" : "Ready", color: "text-emerald-400" },
-          { label: "PVM Modules", value: `${(pvmCodecEnabled ? 1 : 0) + (pvmScorerEnabled ? 1 : 0) + (pvmAggregatorEnabled ? 1 : 0)}/3`, color: "text-cyan-400" },
+          { label: "PVM Modules", value: `${(pvmScorerEnabled ? 1 : 0) + (pvmAggregatorEnabled ? 1 : 0)}/2`, color: "text-cyan-400" },
         ].map(({ label, value, color }) => (
           <div key={label} className="p-4 rounded-xl bg-surface-1/50 border border-white/5 text-center">
             <p className={`text-2xl font-bold ${color}`}>{value}</p>
