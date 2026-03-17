@@ -280,12 +280,17 @@ ${proposalData.content.slice(0, 3000)}`;
       try {
         const externalContext = await fetchExternalContext(proposalData.content, proposalData.title);
         if (externalContext) {
+          console.log(`  Chat: fetched ${externalContext.length} chars of external context for #${id}`);
           systemPrompt += `
 
 === EXTERNAL CONTEXT (referenced in proposal) ===
 ${externalContext.slice(0, 4000)}`;
+        } else {
+          console.log(`  Chat: no external context found for #${id}`);
         }
-      } catch {}
+      } catch (err) {
+        console.error(`  Chat: failed to fetch external context for #${id}:`, err.message);
+      }
     }
 
     if (proposalData.tally) {
