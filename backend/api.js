@@ -674,9 +674,10 @@ export function startApiServer(port = 3001) {
       if (analysisMatch) {
         const id = Number(analysisMatch[1]);
         let analysis = analysisStore.get(id);
+        const forceRefresh = url.searchParams?.get("refresh") === "1" || req.url?.includes("refresh=1");
 
-        // If not in memory but exists on-chain, re-generate deep analysis
-        if (!analysis) {
+        // If not in memory, or force refresh requested, re-generate deep analysis
+        if (!analysis || forceRefresh) {
           try {
             const exists = await hasExistingAnalysis(id);
             if (exists) {
