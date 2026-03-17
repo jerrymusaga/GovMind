@@ -34,7 +34,7 @@ Respond with ONLY valid JSON matching this EXACT structure. No markdown, no expl
   "treasuryImpactBps": <basis points on 38M treasury>,
   "summary": "<1 sentence verdict>",
   "deepAnalysis": {
-    "verdict": "<3-4 sentence detailed reasoning chain explaining WHY you reached this recommendation, citing specific data points>",
+    "verdict": "<3-4 sentence detailed reasoning chain explaining WHY you reached this recommendation. IMPORTANT: If EXTERNAL CONTEXT is provided (forum posts, GitHub releases), you MUST reference key details from it (e.g. DAP, staking changes, issuance, technical changes). Do not ignore external context.>",
     "treasuryBreakdown": {
       "requestedDOT": <number>,
       "requestedUSD": <estimated USD value at $5/DOT>,
