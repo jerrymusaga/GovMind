@@ -1183,15 +1183,11 @@ function computeCollectiveRecommendation(
   let confidence: number;
 
   if (alignment >= 60) {
-    recommendation = baseRec >= 0 ? 1 : 0;
-    confidence = baseRec >= 0
-      ? Math.min(100, baseConf + Math.floor((alignment - 50) / 2))
-      : Math.min(100, Math.floor(baseConf / 2 + alignment / 2));
+    recommendation = 1;
+    confidence = Math.min(100, baseConf + Math.floor((alignment - 50) / 2));
   } else if (alignment <= 40) {
-    recommendation = baseRec <= 0 ? -1 : 0;
-    confidence = baseRec <= 0
-      ? Math.min(100, baseConf + Math.floor((50 - alignment) / 2))
-      : Math.min(100, Math.floor(baseConf / 2 + (100 - alignment) / 2));
+    recommendation = -1;
+    confidence = Math.min(100, baseConf + Math.floor((50 - alignment) / 2));
   } else {
     recommendation = baseRec;
     confidence = baseConf;
