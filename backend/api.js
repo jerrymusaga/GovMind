@@ -1,6 +1,6 @@
 import http from "http";
 import OpenAI from "openai";
-import { fetchReferendum, fetchHistoricalPrecedents } from "./subsquare.js";
+import { fetchReferendum, fetchHistoricalPrecedents, fetchExternalContext } from "./subsquare.js";
 import { analyzeProposal } from "./analyzer.js";
 import {
   publishAnalysis,
@@ -275,6 +275,17 @@ Proposer: ${proposalData.proposer || "Unknown"}`;
 
 === PROPOSAL DESCRIPTION ===
 ${proposalData.content.slice(0, 3000)}`;
+
+      // Fetch external context (forum posts, GitHub releases) linked in the proposal
+      try {
+        const externalContext = await fetchExternalContext(proposalData.content, proposalData.title);
+        if (externalContext) {
+          systemPrompt += `
+
+=== EXTERNAL CONTEXT (referenced in proposal) ===
+${externalContext.slice(0, 4000)}`;
+        }
+      } catch {}
     }
 
     if (proposalData.tally) {

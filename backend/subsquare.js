@@ -260,6 +260,102 @@ function stripHtml(str) {
   return str.replace(/<[^>]*>/g, "").replace(/\s+/g, " ").trim();
 }
 
+/**
+ * Extract external links from proposal content (forum, GitHub releases)
+ */
+function extractExternalLinks(content) {
+  const links = [];
+  // Forum links
+  const forumRegex = /https?:\/\/forum\.polkadot\.network\/t\/[^\s)\]"<,]+/g;
+  const forumMatches = content.match(forumRegex) || [];
+  for (const url of forumMatches) links.push({ type: "forum", url: url.replace(/[.)]+$/, "") });
+
+  // GitHub release links
+  const ghRegex = /https?:\/\/github\.com\/[^\s)\]"<,]*releases\/tag\/[^\s)\]"<,]+/g;
+  const ghMatches = content.match(ghRegex) || [];
+  for (const url of ghMatches) links.push({ type: "github_release", url: url.replace(/[.)]+$/, "") });
+
+  return links;
+}
+
+/**
+ * Fetch external context from forum or GitHub links found in proposal content
+ */
+export async function fetchExternalContext(content, title = "") {
+  const links = extractExternalLinks(content || "");
+  if (links.length === 0) return null;
+
+  const contexts = [];
+
+  for (const link of links.slice(0, 2)) {
+    try {
+      if (link.type === "forum") {
+        // Discourse API — append .json to get the topic data
+        const jsonUrl = link.url.replace(/\/?\d*$/, "") + ".json";
+        const res = await fetch(jsonUrl, {
+          headers: { "Accept": "application/json" },
+          signal: AbortSignal.timeout(8000),
+        });
+        if (res.ok) {
+          const topic = await res.json();
+          const firstPost = topic.post_stream?.posts?.[0];
+          if (firstPost) {
+            const text = stripHtml(firstPost.cooked || "").slice(0, 3000);
+            contexts.push(`[Polkadot Forum: ${topic.title || link.url}]\n${text}`);
+          }
+        }
+      } else if (link.type === "github_release") {
+        // GitHub API for release
+        const apiUrl = link.url
+          .replace("github.com", "api.github.com/repos")
+          .replace("/releases/tag/", "/releases/tags/");
+        const res = await fetch(apiUrl, {
+          headers: { "Accept": "application/vnd.github.v3+json" },
+          signal: AbortSignal.timeout(8000),
+        });
+        if (res.ok) {
+          const release = await res.json();
+          const body = (release.body || "").slice(0, 3000);
+          contexts.push(`[GitHub Release: ${release.name || release.tag_name}]\n${body}`);
+        }
+      }
+    } catch (err) {
+      console.warn(`  Failed to fetch external context from ${link.url}: ${err.message}`);
+    }
+  }
+
+  // If no forum link was found in the content, search the forum by title
+  if (!links.some(l => l.type === "forum") && title) {
+    try {
+      const searchUrl = `https://forum.polkadot.network/search.json?q=${encodeURIComponent(title)}`;
+      const res = await fetch(searchUrl, { signal: AbortSignal.timeout(8000) });
+      if (res.ok) {
+        const data = await res.json();
+        const topic = data.topics?.[0];
+        if (topic) {
+          const topicUrl = `https://forum.polkadot.network/t/${topic.slug}/${topic.id}.json`;
+          const topicRes = await fetch(topicUrl, {
+            headers: { "Accept": "application/json" },
+            signal: AbortSignal.timeout(8000),
+          });
+          if (topicRes.ok) {
+            const topicData = await topicRes.json();
+            const firstPost = topicData.post_stream?.posts?.[0];
+            if (firstPost) {
+              const text = stripHtml(firstPost.cooked || "").slice(0, 3000);
+              contexts.push(`[Polkadot Forum: ${topicData.title || topic.title}]\n${text}`);
+            }
+          }
+        }
+      }
+    } catch (err) {
+      console.warn(`  Forum search failed: ${err.message}`);
+    }
+  }
+
+  return contexts.length > 0 ? contexts.join("\n\n") : null;
+}
+
 // Hardcoded real proposals as fallback for demo reliability
 const FALLBACK_PROPOSALS = [
   {
