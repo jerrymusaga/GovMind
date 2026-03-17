@@ -144,31 +144,14 @@ export default function ChatAgent({
           <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3">
             {/* Welcome message */}
             {messages.length === 0 && (
-              <div className="space-y-3">
-                <div className="flex gap-2">
-                  <div className="w-6 h-6 rounded-full bg-polkadot-pink/20 flex items-center justify-center flex-shrink-0 mt-0.5">
-                    <Bot className="w-3 h-3 text-polkadot-pink" />
-                  </div>
-                  <div className="bg-surface-3 rounded-xl rounded-tl-sm px-3 py-2 text-sm text-gray-300 max-w-[85%]">
-                    I&apos;m GovMind&apos;s AI agent. Ask me anything about{" "}
-                    <span className="text-white font-medium">{proposalTitle}</span> —
-                    risk factors, treasury impact, or whether you should vote Aye or Nay.
-                  </div>
+              <div className="flex gap-2">
+                <div className="w-6 h-6 rounded-full bg-polkadot-pink/20 flex items-center justify-center flex-shrink-0 mt-0.5">
+                  <Bot className="w-3 h-3 text-polkadot-pink" />
                 </div>
-                {/* Quick suggestions */}
-                <div className="flex flex-wrap gap-1.5 pl-8">
-                  {suggestions.map((s) => (
-                    <button
-                      key={s}
-                      onClick={() => {
-                        setInput(s);
-                        setTimeout(() => inputRef.current?.focus(), 0);
-                      }}
-                      className="text-[11px] px-2.5 py-1 rounded-full border border-white/10 text-gray-400 hover:text-white hover:border-polkadot-pink/30 transition-colors"
-                    >
-                      {s}
-                    </button>
-                  ))}
+                <div className="bg-surface-3 rounded-xl rounded-tl-sm px-3 py-2 text-sm text-gray-300 max-w-[85%]">
+                  I&apos;m GovMind&apos;s AI agent. Ask me anything about{" "}
+                  <span className="text-white font-medium">{proposalTitle}</span> —
+                  risk factors, treasury impact, or whether you should vote Aye or Nay.
                 </div>
               </div>
             )}
@@ -209,6 +192,22 @@ export default function ChatAgent({
             )}
 
             <div ref={messagesEndRef} />
+          </div>
+
+          {/* Quick suggestions */}
+          <div className="flex flex-wrap gap-1.5 px-3 pt-2">
+            {suggestions.map((s) => (
+              <button
+                key={s}
+                onClick={() => {
+                  setInput(s);
+                  setTimeout(() => inputRef.current?.focus(), 0);
+                }}
+                className="text-[11px] px-2.5 py-1 rounded-full border border-white/10 text-gray-400 hover:text-white hover:border-polkadot-pink/30 transition-colors"
+              >
+                {s}
+              </button>
+            ))}
           </div>
 
           {/* Input */}
