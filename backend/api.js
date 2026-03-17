@@ -285,7 +285,7 @@ ${proposalData.content.slice(0, 3000)}`;
           systemPrompt += `
 
 === EXTERNAL CONTEXT (referenced in proposal) ===
-${externalContext.slice(0, 4000)}`;
+${externalContext.slice(0, 6000)}`;
         } else {
           console.log(`  Chat: no external context found for #${id}`);
         }
