@@ -270,6 +270,13 @@ Track: ${proposalData.trackName || proposalData.track || "Unknown"}
 Status: ${proposalData.state || "Unknown"}
 Proposer: ${proposalData.proposer || "Unknown"}`;
 
+    if (proposalData.content) {
+      systemPrompt += `
+
+=== PROPOSAL DESCRIPTION ===
+${proposalData.content.slice(0, 3000)}`;
+    }
+
     if (proposalData.tally) {
       systemPrompt += `
 Voting: ${proposalData.tally.ayePercent || 0}% Aye | Ayes: ${proposalData.tally.ayes?.toLocaleString() || 0} DOT | Nays: ${proposalData.tally.nays?.toLocaleString() || 0} DOT`;
