@@ -70,6 +70,7 @@ export function storeProposalMeta(referendumIndex, proposal) {
   proposalStore.set(Number(referendumIndex), {
     referendumIndex: proposal.referendumIndex,
     title: proposal.title,
+    content: proposal.content,
     track: proposal.track,
     trackName: proposal.trackName,
     state: proposal.state,
@@ -241,9 +242,9 @@ async function handleChatRequest(id, req, res) {
   const analysis = analysisStore.get(id);
   const proposal = proposalStore.get(id);
 
-  // If we don't have proposal data, try fetching it
+  // If we don't have proposal data or it's missing content, fetch fresh
   let proposalData = proposal;
-  if (!proposalData) {
+  if (!proposalData || !proposalData.content) {
     try {
       proposalData = await fetchReferendum(id);
     } catch {}
