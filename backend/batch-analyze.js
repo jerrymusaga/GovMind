@@ -19,12 +19,14 @@ import { publishAnalysis, hasExistingAnalysis } from "./contracts.js";
 
 const args = process.argv.slice(2);
 const dryRun = args.includes("--dry-run");
+const force = args.includes("--force");
 const limitIdx = args.indexOf("--limit");
 const limit = limitIdx !== -1 ? Number(args[limitIdx + 1]) : 20;
 
 async function main() {
   console.log("=== GovMind Batch Analyzer ===");
   console.log(`Mode: ${dryRun ? "DRY RUN (no on-chain writes)" : "LIVE (publishing on-chain)"}`);
+  console.log(`Force: ${force ? "YES (re-analyzing all)" : "NO (skipping existing)"}`);
   console.log(`Limit: ${limit} proposals\n`);
 
   // Fetch active referenda
@@ -42,15 +44,17 @@ async function main() {
     console.log(`   Track: ${proposal.trackName} | State: ${proposal.state}`);
 
     // Check if already on-chain
-    try {
-      const exists = await hasExistingAnalysis(id);
-      if (exists) {
-        console.log(`   ✓ Already on-chain, skipping`);
-        skipped++;
-        continue;
+    if (!force) {
+      try {
+        const exists = await hasExistingAnalysis(id);
+        if (exists) {
+          console.log(`   ✓ Already on-chain, skipping (use --force to re-analyze)`);
+          skipped++;
+          continue;
+        }
+      } catch (err) {
+        console.warn(`   Warning: Could not check on-chain status: ${err.message}`);
       }
-    } catch (err) {
-      console.warn(`   Warning: Could not check on-chain status: ${err.message}`);
     }
 
     // AI analysis
@@ -70,7 +74,7 @@ async function main() {
 
       // Publish on-chain with delay between transactions
       console.log(`   Publishing on-chain...`);
-      const receipt = await publishAnalysis(id, proposal.track, analysis);
+      const receipt = await publishAnalysis(id, proposal.track, analysis, { force });
       if (receipt) {
         console.log(`   ✓ Published in block ${receipt.blockNumber} (tx: ${receipt.hash})`);
         analyzed++;

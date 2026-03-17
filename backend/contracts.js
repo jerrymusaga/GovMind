@@ -70,13 +70,27 @@ export async function getOnChainAnalysis(referendumIndex) {
 /**
  * Publish AI analysis to the AIOracle contract (first time)
  */
-export async function publishAnalysis(referendumIndex, track, analysis) {
+export async function publishAnalysis(referendumIndex, track, analysis, { force = false } = {}) {
   const oracle = getOracle();
 
   const exists = await oracle.hasAnalysis(referendumIndex);
-  if (exists) {
+  if (exists && !force) {
     console.log(`  Referendum ${referendumIndex} already analyzed on-chain, skipping.`);
     return null;
+  }
+  if (exists && force) {
+    console.log(`  Referendum ${referendumIndex} exists, force-updating on-chain...`);
+    const ipfsHash = `QmGovMind_${referendumIndex}_v${Date.now()}`;
+    const requestedAmount = ethers.parseUnits(String(Math.floor(analysis.requestedAmountDOT)), 0);
+    const tx = await oracle.updateAnalysis(
+      referendumIndex, analysis.riskScore, analysis.categoryId,
+      analysis.recommendation, analysis.confidence,
+      requestedAmount, analysis.treasuryImpactBps, ipfsHash
+    );
+    console.log(`  TX sent: ${tx.hash}`);
+    const receipt = await tx.wait();
+    console.log(`  Updated in block ${receipt.blockNumber}`);
+    return receipt;
   }
 
   const ipfsHash = `QmGovMind_${referendumIndex}_v1`;

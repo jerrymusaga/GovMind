@@ -1,4 +1,5 @@
 import OpenAI from "openai";
+import { fetchExternalContext } from "./subsquare.js";
 
 let _openai;
 function getOpenAI() {
@@ -92,6 +93,14 @@ Data Source: ${proposal.dataSource || "subsquare"}
 
 === PROPOSAL CONTENT ===
 ${proposal.content}`;
+
+  // External context from forum or GitHub
+  if (proposal.externalContext) {
+    prompt += `
+
+=== EXTERNAL CONTEXT (from linked forum/GitHub sources) ===
+${proposal.externalContext.slice(0, 3000)}`;
+  }
 
   // On-chain voting data
   if (proposal.tally && (proposal.tally.ayes > 0 || proposal.tally.nays > 0)) {
@@ -211,6 +220,14 @@ No historical data available for comparison. Note this as a limitation in your a
  * Returns both on-chain params AND rich deep analysis for the API
  */
 export async function analyzeProposal(proposal, historicalData = []) {
+  // Fetch external context (forum posts, GitHub releases) linked in proposal
+  try {
+    const externalContext = await fetchExternalContext(proposal.content, proposal.title);
+    if (externalContext) {
+      proposal = { ...proposal, externalContext };
+    }
+  } catch {}
+
   const userPrompt = buildEnrichedPrompt(proposal, historicalData);
 
   // Log enrichment stats
@@ -220,6 +237,7 @@ export async function analyzeProposal(proposal, historicalData = []) {
   if (proposal.spendingInfo?.totalAmountDOT > 0) enrichmentStats.push("spending");
   if (proposal.statusTimeline?.length > 0) enrichmentStats.push("timeline");
   if (historicalData.length > 0) enrichmentStats.push(`${historicalData.length} precedents`);
+  if (proposal.externalContext) enrichmentStats.push("forum/github context");
   if (enrichmentStats.length > 0) {
     console.log(`  Enriched with: ${enrichmentStats.join(", ")}`);
   }
