@@ -99,7 +99,7 @@ ${proposal.content}`;
     prompt += `
 
 === EXTERNAL CONTEXT (from linked forum/GitHub sources) ===
-${proposal.externalContext.slice(0, 3000)}`;
+${proposal.externalContext.slice(0, 6000)}`;
   }
 
   // On-chain voting data
