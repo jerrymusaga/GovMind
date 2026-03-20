@@ -29,6 +29,7 @@ import {
   Settings,
   Users,
   Shield,
+  ExternalLink,
 } from "lucide-react";
 import { useState } from "react";
 import Link from "next/link";
@@ -393,11 +394,22 @@ function ContractsSection() {
             }`}>
               {type}
             </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-white">{name}</p>
-              <p className="text-[11px] text-gray-500 truncate font-mono">{addr}</p>
-            </div>
-            <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+            <a
+              href={`https://blockscout-testnet.polkadot.io/address/${addr}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex-1 min-w-0 group/link"
+            >
+              <p className="text-sm font-medium text-white group-hover/link:text-polkadot-pink transition-colors">{name}</p>
+              <p className="text-[11px] text-gray-500 truncate font-mono group-hover/link:text-gray-400 transition-colors">{addr}</p>
+            </a>
+            <a
+              href={`https://blockscout-testnet.polkadot.io/address/${addr}`}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              <ExternalLink className="w-4 h-4 text-emerald-400 shrink-0 hover:text-polkadot-pink transition-colors" />
+            </a>
           </div>
         ))}
       </div>
